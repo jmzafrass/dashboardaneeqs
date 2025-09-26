@@ -6,6 +6,7 @@ import { LtvFilters } from "@/components/filters/LtvFilters";
 import { RetentionFilters } from "@/components/filters/RetentionFilters";
 import { LtvHeatmap } from "@/components/tables/LtvHeatmap";
 import { HeatmapRow, RetentionHeatmap } from "@/components/tables/RetentionHeatmap";
+import { OrdersDashboard } from "@/components/orders/OrdersDashboard";
 import { UsersDashboard } from "@/components/users/UsersDashboard";
 import { useActiveUsersData } from "@/hooks/useActiveUsersData";
 import { useLtvData } from "@/hooks/useLtvData";
@@ -149,7 +150,7 @@ function ltvCellColor(value: number | undefined, max: number) {
 }
 
 export function Dashboard() {
-  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users">("cohorts");
+  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders">("cohorts");
   const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
 
@@ -330,6 +331,15 @@ export function Dashboard() {
             User Analytics
           </button>
           <button
+            className={classNames(
+              "px-4 py-2 rounded-lg text-sm font-medium",
+              primaryTab === "orders" ? "bg-blue-600 text-white" : "bg-gray-200",
+            )}
+            onClick={() => setPrimaryTab("orders")}
+          >
+            Orders MoM
+          </button>
+          <button
             className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200"
             onClick={() => setRefreshKey(Date.now())}
             title="Re-run data fetches"
@@ -469,8 +479,10 @@ export function Dashboard() {
               </div>
             )}
           </div>
-        ) : (
+        ) : primaryTab === "users" ? (
           <UsersDashboard rows={activeRows} isLoading={activeLoading} error={activeError} usingFallback={activeFallback} />
+        ) : (
+          <OrdersDashboard />
         )}
       </div>
     </div>
