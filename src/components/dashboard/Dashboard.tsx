@@ -6,6 +6,8 @@ import { LtvFilters } from "@/components/filters/LtvFilters";
 import { RetentionFilters } from "@/components/filters/RetentionFilters";
 import { LtvHeatmap } from "@/components/tables/LtvHeatmap";
 import { HeatmapRow, RetentionHeatmap } from "@/components/tables/RetentionHeatmap";
+import { UsersDashboard } from "@/components/users/UsersDashboard";
+import { useActiveUsersData } from "@/hooks/useActiveUsersData";
 import { useLtvData } from "@/hooks/useLtvData";
 import { useRetentionData } from "@/hooks/useRetentionData";
 import { RETENTION_URL, LTV_URL } from "@/lib/analytics/constants";
@@ -147,7 +149,8 @@ function ltvCellColor(value: number | undefined, max: number) {
 }
 
 export function Dashboard() {
-  const [activeTab, setActiveTab] = useState<"retention" | "ltv">("retention");
+  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users">("cohorts");
+  const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
 
   const {
@@ -158,6 +161,13 @@ export function Dashboard() {
   } = useRetentionData(refreshKey);
 
   const { rows: ltvRows, error: ltvError, isLoading: ltvLoading, usingFallback: ltvFallback } = useLtvData(refreshKey);
+
+  const {
+    rows: activeRows,
+    error: activeError,
+    isLoading: activeLoading,
+    usingFallback: activeFallback,
+  } = useActiveUsersData(refreshKey);
 
   const [dimension, setDimension] = useState<Dimension>("overall");
   const [metric, setMetric] = useState<Metric>("any");
@@ -300,144 +310,167 @@ export function Dashboard() {
       <div className="p-6 max-w-[1400px] mx-auto">
         <h1 className="text-2xl font-bold mb-6">Customer Analytics Dashboard</h1>
 
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <div className="bg-white p-4 rounded-xl shadow">
-            <div className="text-sm font-medium mb-1">Retention data source</div>
-            <div className="text-xs text-gray-600 break-all">
-              {retentionFallback
-                ? "Embedded fallback sample"
-                : `Local CSV asset (${RETENTION_URL})`}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-2">Parsed rows: {retentionRows.length}</div>
-            {retentionError && <div className="mt-2 text-xs text-red-600">{String(retentionError)}</div>}
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow">
-            <div className="text-sm font-medium mb-1">LTV data source</div>
-            <div className="text-xs text-gray-600 break-all">
-              {ltvFallback ? "Embedded fallback sample" : `Local CSV asset (${LTV_URL})`}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-2">Parsed rows: {ltvRows.length}</div>
-            {ltvError && <div className="mt-2 text-xs text-red-600">{String(ltvError)}</div>}
-          </div>
-        </div>
-
         <div className="flex gap-2 mb-4">
           <button
             className={classNames(
               "px-4 py-2 rounded-lg text-sm font-medium",
-              activeTab === "retention" ? "bg-blue-600 text-white" : "bg-gray-200",
+              primaryTab === "cohorts" ? "bg-blue-600 text-white" : "bg-gray-200",
             )}
-            onClick={() => setActiveTab("retention")}
+            onClick={() => setPrimaryTab("cohorts")}
           >
-            Retention
+            Cohort Analytics
           </button>
           <button
             className={classNames(
               "px-4 py-2 rounded-lg text-sm font-medium",
-              activeTab === "ltv" ? "bg-blue-600 text-white" : "bg-gray-200",
+              primaryTab === "users" ? "bg-blue-600 text-white" : "bg-gray-200",
             )}
-            onClick={() => setActiveTab("ltv")}
+            onClick={() => setPrimaryTab("users")}
           >
-            LTV
+            User Analytics
           </button>
           <button
             className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200"
             onClick={() => setRefreshKey(Date.now())}
             title="Re-run data fetches"
           >
-            Refresh
+            Refresh data
           </button>
         </div>
 
-        {activeTab === "retention" && (
+        {primaryTab === "cohorts" ? (
           <div className="space-y-4">
-            <RetentionFilters
-              dimension={dimension}
-              metric={effectiveMetric}
-              firstValue={effectiveFirstValue}
-              startMonth={startMonth}
-              endMonth={endMonth}
-              months={uniqueRetention.months}
-              categories={uniqueRetention.categories}
-              skus={uniqueRetention.skus}
-              onDimensionChange={(value) => {
-                setDimension(value);
-                if (value === "overall") {
-                  setMetric("any");
-                  setFirstValue("ALL");
-                } else if (value === "category") {
-                  setFirstValue(uniqueRetention.categories[0] ?? "");
-                } else {
-                  setFirstValue(uniqueRetention.skus[0] ?? "");
-                }
-              }}
-              onMetricChange={(value) => setMetric(value)}
-              onFirstValueChange={(value) => setFirstValue(value)}
-              onStartMonthChange={setStartMonth}
-              onEndMonthChange={setEndMonth}
-            />
-
-            <RetentionHeatmap
-              rows={retentionPivot.rows}
-              maxMonth={retentionPivot.maxMonth}
-              cellColor={retentionCellColor}
-            />
-
-            <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
-              <p>
-                <strong>Notes:</strong> Retention uses delivered-only purchases; dates are parsed day-first (dd/mm/yyyy) in the
-                source pipeline. &quot;Any&quot; counts any-product repurchase; &quot;Same&quot; counts stickiness within the first category/SKU.
-              </p>
-              {(retentionLoading || !retentionRows.length) && <p className="mt-1">Loading retention data…</p>}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-xl shadow">
+                <div className="text-sm font-medium mb-1">Retention data source</div>
+                <div className="text-xs text-gray-600 break-all">
+                  {retentionFallback ? "Embedded fallback sample" : `Local CSV asset (${RETENTION_URL})`}
+                </div>
+                <div className="text-[11px] text-gray-500 mt-2">Parsed rows: {retentionRows.length}</div>
+                {retentionError && <div className="mt-2 text-xs text-red-600">{String(retentionError)}</div>}
+              </div>
+              <div className="bg-white p-4 rounded-xl shadow">
+                <div className="text-sm font-medium mb-1">LTV data source</div>
+                <div className="text-xs text-gray-600 break-all">
+                  {ltvFallback ? "Embedded fallback sample" : `Local CSV asset (${LTV_URL})`}
+                </div>
+                <div className="text-[11px] text-gray-500 mt-2">Parsed rows: {ltvRows.length}</div>
+                {ltvError && <div className="mt-2 text-xs text-red-600">{String(ltvError)}</div>}
+              </div>
             </div>
-          </div>
-        )}
 
-        {activeTab === "ltv" && (
-          <div className="space-y-4">
-            <LtvFilters
-              dimension={ltvDimension}
-              metric={effectiveLtvMetric}
-              firstValue={effectiveLtvFirstValue}
-              startMonth={ltvStartMonth}
-              endMonth={ltvEndMonth}
-              months={uniqueLtv.months}
-              categories={uniqueLtv.categories}
-              skus={uniqueLtv.skus}
-              onDimensionChange={(value) => {
-                setLtvDimension(value);
-                if (value === "overall") {
-                  setLtvMetric("any");
-                  setLtvFirstValue("ALL");
-                } else if (value === "category") {
-                  setLtvFirstValue(uniqueLtv.categories[0] ?? "");
-                } else {
-                  setLtvFirstValue(uniqueLtv.skus[0] ?? "");
-                }
-              }}
-              onMetricChange={(value) => setLtvMetric(value)}
-              onFirstValueChange={(value) => setLtvFirstValue(value)}
-              onStartMonthChange={setLtvStartMonth}
-              onEndMonthChange={setLtvEndMonth}
-            />
-
-            <LtvHeatmap
-              rows={ltvPivot.rows}
-              maxMonth={ltvPivot.maxMonth}
-              maxValue={ltvPivot.maxValue ?? 0}
-              cellColor={ltvCellColor}
-            />
-
-            <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
-              <p>
-                <strong>Notes:</strong> LTV is cumulative per-user revenue or gross margin for each cohort (delivered-only).
-                <em> Any</em> includes all spend; <em>Same</em> includes only the same category/SKU as the first purchase. Dates parsed
-                day-first (dd/mm/yyyy). No right-censoring beyond data coverage.
-              </p>
-              {(ltvLoading || !ltvRows.length) && <p className="mt-1">Loading LTV data…</p>}
-              {ltvError && <p className="mt-1 text-red-600">{String(ltvError)}</p>}
+            <div className="flex gap-2">
+              <button
+                className={classNames(
+                  "px-4 py-2 rounded-lg text-sm font-medium",
+                  cohortTab === "retention" ? "bg-blue-600 text-white" : "bg-gray-200",
+                )}
+                onClick={() => setCohortTab("retention")}
+              >
+                Retention
+              </button>
+              <button
+                className={classNames(
+                  "px-4 py-2 rounded-lg text-sm font-medium",
+                  cohortTab === "ltv" ? "bg-blue-600 text-white" : "bg-gray-200",
+                )}
+                onClick={() => setCohortTab("ltv")}
+              >
+                LTV
+              </button>
             </div>
+
+            {cohortTab === "retention" ? (
+              <div className="space-y-4">
+                <RetentionFilters
+                  dimension={dimension}
+                  metric={effectiveMetric}
+                  firstValue={effectiveFirstValue}
+                  startMonth={startMonth}
+                  endMonth={endMonth}
+                  months={uniqueRetention.months}
+                  categories={uniqueRetention.categories}
+                  skus={uniqueRetention.skus}
+                  onDimensionChange={(value) => {
+                    setDimension(value);
+                    if (value === "overall") {
+                      setMetric("any");
+                      setFirstValue("ALL");
+                    } else if (value === "category") {
+                      setFirstValue(uniqueRetention.categories[0] ?? "");
+                    } else {
+                      setFirstValue(uniqueRetention.skus[0] ?? "");
+                    }
+                  }}
+                  onMetricChange={(value) => setMetric(value)}
+                  onFirstValueChange={(value) => setFirstValue(value)}
+                  onStartMonthChange={setStartMonth}
+                  onEndMonthChange={setEndMonth}
+                />
+
+                <RetentionHeatmap
+                  rows={retentionPivot.rows}
+                  maxMonth={retentionPivot.maxMonth}
+                  cellColor={retentionCellColor}
+                />
+
+                <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
+                  <p>
+                    <strong>Notes:</strong> Retention uses delivered-only purchases; dates are parsed day-first (dd/mm/yyyy) in the
+                    source pipeline. &quot;Any&quot; counts any-product repurchase; &quot;Same&quot; counts stickiness within the first category/SKU.
+                  </p>
+                  {(retentionLoading || !retentionRows.length) && <p className="mt-1">Loading retention data…</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <LtvFilters
+                  dimension={ltvDimension}
+                  metric={effectiveLtvMetric}
+                  firstValue={effectiveLtvFirstValue}
+                  startMonth={ltvStartMonth}
+                  endMonth={ltvEndMonth}
+                  months={uniqueLtv.months}
+                  categories={uniqueLtv.categories}
+                  skus={uniqueLtv.skus}
+                  onDimensionChange={(value) => {
+                    setLtvDimension(value);
+                    if (value === "overall") {
+                      setLtvMetric("any");
+                      setLtvFirstValue("ALL");
+                    } else if (value === "category") {
+                      setLtvFirstValue(uniqueLtv.categories[0] ?? "");
+                    } else {
+                      setLtvFirstValue(uniqueLtv.skus[0] ?? "");
+                    }
+                  }}
+                  onMetricChange={(value) => setLtvMetric(value)}
+                  onFirstValueChange={(value) => setLtvFirstValue(value)}
+                  onStartMonthChange={setLtvStartMonth}
+                  onEndMonthChange={setLtvEndMonth}
+                />
+
+                <LtvHeatmap
+                  rows={ltvPivot.rows}
+                  maxMonth={ltvPivot.maxMonth}
+                  maxValue={ltvPivot.maxValue ?? 0}
+                  cellColor={ltvCellColor}
+                />
+
+                <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
+                  <p>
+                    <strong>Notes:</strong> LTV is cumulative per-user revenue or gross margin for each cohort (delivered-only).
+                    <em> Any</em> includes all spend; <em>Same</em> includes only the same category/SKU as the first purchase. Dates parsed
+                    day-first (dd/mm/yyyy). No right-censoring beyond data coverage.
+                  </p>
+                  {(ltvLoading || !ltvRows.length) && <p className="mt-1">Loading LTV data…</p>}
+                  {ltvError && <p className="mt-1 text-red-600">{String(ltvError)}</p>}
+                </div>
+              </div>
+            )}
           </div>
+        ) : (
+          <UsersDashboard rows={activeRows} isLoading={activeLoading} error={activeError} usingFallback={activeFallback} />
         )}
       </div>
     </div>

@@ -49,3 +49,11 @@ export interface LtvRow {
   cohort_size: number;
   ltv_per_user: number;
 }
+
+export interface ActiveUsersRow {
+  month: string;
+  active_subscribers: number;
+  active_onetime: number;
+  active_total: number;
+  is_future_vs_today?: number;
+}
