@@ -181,7 +181,7 @@ export function OrdersDashboard() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={headlineSeries}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12 }} />
                 <YAxis />
                 <Tooltip formatter={(value: number) => [value, "Orders"]} />
                 <Legend />
@@ -194,7 +194,7 @@ export function OrdersDashboard() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={headlineSeries}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12 }} />
                 <YAxis />
                 <Tooltip
                   formatter={(value: number, name) => [value.toFixed(3), name === "ado" ? "ADO" : "ADO pacing"]}
@@ -210,7 +210,7 @@ export function OrdersDashboard() {
             <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={verticalSeries} stackOffset="expand">
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(value) => `${Math.round(value * 100)}%`} />
                 <Tooltip
                   formatter={(value: number, name) => [Math.round(value), name]}
