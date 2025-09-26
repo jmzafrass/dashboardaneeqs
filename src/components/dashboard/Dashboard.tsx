@@ -10,7 +10,7 @@ import { useLtvData } from "@/hooks/useLtvData";
 import { useRetentionData } from "@/hooks/useRetentionData";
 import { RETENTION_URL, LTV_URL } from "@/lib/analytics/constants";
 import { addMonths, classNames, monthKeyFromDate, monthsDiff } from "@/lib/analytics/utils";
-import type { Dimension, Measure, Metric, LtvRow, RetentionRow } from "@/lib/analytics/types";
+import type { Dimension, Metric, LtvRow, RetentionRow } from "@/lib/analytics/types";
 
 interface PivotResult {
   rows: HeatmapRow[];
@@ -72,7 +72,6 @@ function buildLtvPivot(
   filters: {
     dimension: Dimension;
     metric: Metric;
-    measure: Measure;
     firstValue: string;
     startMonth: string;
     endMonth: string;
@@ -83,7 +82,7 @@ function buildLtvPivot(
     if (row.dimension !== filters.dimension) return false;
     if (filters.dimension !== "overall" && row.first_value !== filters.firstValue) return false;
     if (row.metric !== filters.metric) return false;
-    if (row.measure !== filters.measure) return false;
+    if (row.measure !== "gm") return false;
     if (filters.startMonth && row.cohortMonthKey < filters.startMonth) return false;
     if (filters.endMonth && row.cohortMonthKey > filters.endMonth) return false;
     if (lastObservedMonth && row.cohortMonthKey >= lastObservedMonth) return false;
@@ -169,7 +168,6 @@ export function Dashboard() {
   const [ltvDimension, setLtvDimension] = useState<Dimension>("overall");
   const [ltvMetric, setLtvMetric] = useState<Metric>("any");
   const [ltvFirstValue, setLtvFirstValue] = useState("ALL");
-  const [ltvMeasure, setLtvMeasure] = useState<Measure>("revenue");
   const [ltvStartMonth, setLtvStartMonth] = useState("");
   const [ltvEndMonth, setLtvEndMonth] = useState("");
 
@@ -189,13 +187,16 @@ export function Dashboard() {
   }, [retentionRows]);
 
   const uniqueLtv = useMemo(() => {
-    const categories = Array.from(new Set(ltvRows.filter((row) => row.dimension === "category").map((row) => row.first_value)))
+    const gmRows = ltvRows.filter((row) => row.measure === "gm");
+    const categories = Array.from(
+      new Set(gmRows.filter((row) => row.dimension === "category").map((row) => row.first_value)),
+    )
       .filter(Boolean)
       .sort();
-    const skus = Array.from(new Set(ltvRows.filter((row) => row.dimension === "sku").map((row) => row.first_value)))
+    const skus = Array.from(new Set(gmRows.filter((row) => row.dimension === "sku").map((row) => row.first_value)))
       .filter(Boolean)
       .sort();
-    const months = Array.from(new Set(ltvRows.map((row) => row.cohortMonthKey))).sort();
+    const months = Array.from(new Set(gmRows.map((row) => row.cohortMonthKey))).sort();
     return { categories, skus, months };
   }, [ltvRows]);
 
@@ -273,22 +274,20 @@ export function Dashboard() {
   const ltvPivot = useMemo(
     () =>
       buildLtvPivot(
-        ltvRows,
-        {
-          dimension: ltvDimension,
-          metric: effectiveLtvMetric,
-          measure: ltvMeasure,
-          firstValue: effectiveLtvFirstValue,
-          startMonth: ltvStartMonth,
-          endMonth: ltvEndMonth,
-        },
+      ltvRows,
+      {
+        dimension: ltvDimension,
+        metric: effectiveLtvMetric,
+        firstValue: effectiveLtvFirstValue,
+        startMonth: ltvStartMonth,
+        endMonth: ltvEndMonth,
+      },
         lastObservedLtvMonth,
       ),
     [
       ltvRows,
       ltvDimension,
       effectiveLtvMetric,
-      ltvMeasure,
       effectiveLtvFirstValue,
       ltvStartMonth,
       ltvEndMonth,
@@ -399,7 +398,6 @@ export function Dashboard() {
             <LtvFilters
               dimension={ltvDimension}
               metric={effectiveLtvMetric}
-              measure={ltvMeasure}
               firstValue={effectiveLtvFirstValue}
               startMonth={ltvStartMonth}
               endMonth={ltvEndMonth}
@@ -418,7 +416,6 @@ export function Dashboard() {
                 }
               }}
               onMetricChange={(value) => setLtvMetric(value)}
-              onMeasureChange={(value) => setLtvMeasure(value)}
               onFirstValueChange={(value) => setLtvFirstValue(value)}
               onStartMonthChange={setLtvStartMonth}
               onEndMonthChange={setLtvEndMonth}

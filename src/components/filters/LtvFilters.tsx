@@ -1,11 +1,10 @@
 'use client';
 
-import type { Dimension, Measure, Metric } from "@/lib/analytics/types";
+import type { Dimension, Metric } from "@/lib/analytics/types";
 
 interface LtvFiltersProps {
   dimension: Dimension;
   metric: Metric;
-  measure: Measure;
   firstValue: string;
   startMonth: string;
   endMonth: string;
@@ -14,7 +13,6 @@ interface LtvFiltersProps {
   skus: string[];
   onDimensionChange: (value: Dimension) => void;
   onMetricChange: (value: Metric) => void;
-  onMeasureChange: (value: Measure) => void;
   onFirstValueChange: (value: string) => void;
   onStartMonthChange: (value: string) => void;
   onEndMonthChange: (value: string) => void;
@@ -24,7 +22,6 @@ export function LtvFilters(props: LtvFiltersProps) {
   const {
     dimension,
     metric,
-    measure,
     firstValue,
     startMonth,
     endMonth,
@@ -33,7 +30,6 @@ export function LtvFilters(props: LtvFiltersProps) {
     skus,
     onDimensionChange,
     onMetricChange,
-    onMeasureChange,
     onFirstValueChange,
     onStartMonthChange,
     onEndMonthChange,
@@ -42,7 +38,7 @@ export function LtvFilters(props: LtvFiltersProps) {
   const options = dimension === "category" ? categories : skus;
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow grid md:grid-cols-6 gap-3">
+    <div className="bg-white p-4 rounded-xl shadow grid md:grid-cols-5 gap-3">
       <div>
         <label className="block text-sm mb-1">Dimension</label>
         <select
@@ -91,18 +87,6 @@ export function LtvFilters(props: LtvFiltersProps) {
         >
           <option value="any">Any (all spend)</option>
           <option value="same">Same (stickiness)</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm mb-1">Measure</label>
-        <select
-          value={measure}
-          onChange={(event) => onMeasureChange(event.target.value as Measure)}
-          className="w-full px-3 py-1.5 border rounded-md text-sm"
-        >
-          <option value="revenue">Revenue</option>
-          <option value="gm">Gross Margin</option>
         </select>
       </div>
 
