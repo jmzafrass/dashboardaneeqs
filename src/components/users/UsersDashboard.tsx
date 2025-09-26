@@ -217,6 +217,7 @@ export function UsersDashboard({ rows, isLoading, error, usingFallback }: UsersD
                   strokeWidth={2}
                   dot={(props) => (
                     <circle
+                      key={props.index}
                       cx={props.cx}
                       cy={props.cy}
                       r={3.5}
@@ -231,6 +232,7 @@ export function UsersDashboard({ rows, isLoading, error, usingFallback }: UsersD
                   strokeWidth={2}
                   dot={(props) => (
                     <circle
+                      key={props.index}
                       cx={props.cx}
                       cy={props.cy}
                       r={3}
@@ -245,6 +247,7 @@ export function UsersDashboard({ rows, isLoading, error, usingFallback }: UsersD
                   strokeWidth={2}
                   dot={(props) => (
                     <circle
+                      key={props.index}
                       cx={props.cx}
                       cy={props.cy}
                       r={3}
