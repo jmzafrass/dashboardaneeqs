@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -48,21 +48,28 @@ export function OrdersDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(downloadExcel = false) {
-    if (!file) return;
+  async function handleSubmit(downloadExcel = false, useDefault = false) {
+    if (!useDefault && !file) {
+      setError("Please choose a CSV file to upload.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    setData((prev) => (downloadExcel ? prev : prev));
 
-    const formData = new FormData();
-    formData.append("file", file);
+    const endpoint = downloadExcel ? "/api/orders/compute.xlsx" : "/api/orders/compute";
+    const url = useDefault ? `${endpoint}?source=default` : endpoint;
+
+    const options: RequestInit = { method: "POST" };
+
+    if (!useDefault) {
+      const formData = new FormData();
+      formData.append("file", file!);
+      options.body = formData;
+    }
 
     try {
-      const endpoint = downloadExcel ? "/api/orders/compute.xlsx" : "/api/orders/compute";
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(url, options);
 
       if (!response.ok) {
         const message = await response.text();
@@ -71,12 +78,12 @@ export function OrdersDashboard() {
 
       if (downloadExcel) {
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
+        const downloadUrl = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
-        anchor.href = url;
+        anchor.href = downloadUrl;
         anchor.download = "mom_orders_outputs.xlsx";
         anchor.click();
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(downloadUrl);
       } else {
         const payload = (await response.json()) as ApiResponse;
         setData(payload);
@@ -87,6 +94,11 @@ export function OrdersDashboard() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    void handleSubmit(false, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const headlineSeries = useMemo(() => data?.momOrders ?? [], [data]);
 
@@ -136,30 +148,52 @@ export function OrdersDashboard() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className="text-sm"
-        />
-        <div className="flex gap-2">
+      <section className="space-y-3">
+        <div className="flex flex-wrap gap-2">
           <button
             className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-60"
-            onClick={() => handleSubmit(false)}
-            disabled={!file || loading}
+            onClick={() => handleSubmit(false, true)}
+            disabled={loading}
           >
-            {loading ? "Processing…" : "Compute"}
+            {loading ? "Processing…" : "Refresh default data"}
           </button>
           <button
             className="px-4 py-2 rounded-md bg-gray-200 disabled:opacity-60"
-            onClick={() => handleSubmit(true)}
-            disabled={!file || loading}
+            onClick={() => handleSubmit(true, true)}
+            disabled={loading}
           >
-            Download Excel
+            Download Excel (default)
           </button>
         </div>
-        {error && <span className="text-sm text-red-600">{error}</span>}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex flex-col text-xs text-gray-500">
+            <span>Optional: upload a custom CSV</span>
+            <span>We will still parse using day-first dates.</span>
+          </div>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            className="text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              className="px-4 py-2 rounded-md bg-slate-900 text-white disabled:opacity-60"
+              onClick={() => handleSubmit(false)}
+              disabled={!file || loading}
+            >
+              Process upload
+            </button>
+            <button
+              className="px-4 py-2 rounded-md bg-gray-200 disabled:opacity-60"
+              onClick={() => handleSubmit(true)}
+              disabled={!file || loading}
+            >
+              Download Excel (upload)
+            </button>
+          </div>
+        </div>
+        {error && <span className="block text-sm text-red-600">{error}</span>}
       </section>
 
       {data && (
