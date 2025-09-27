@@ -9,48 +9,14 @@ import {
   startOfMonth,
 } from "date-fns";
 
-export type Vertical = "pom hl" | "pom sh" | "otc hl" | "otc sh" | "otc sk" | "pom bg";
-
-export interface MomOrdersRow {
-  month: string;
-  orders: number;
-  orders_mom_abs: number | null;
-  orders_mom_pct: number | null;
-  ado: number;
-  ado_pacing: number | null;
-  is_partial: 0 | 1;
-}
-
-export interface MomOrdersByVerticalRow {
-  month: string;
-  vertical: Vertical;
-  orders: number;
-  orders_mom_abs: number | null;
-  orders_mom_pct: number | null;
-  ado_vertical: number;
-  ado_vertical_pacing: number | null;
-  is_partial: 0 | 1;
-}
-
-export interface ProcessResult {
-  momOrders: MomOrdersRow[];
-  momOrdersByVertical: MomOrdersByVerticalRow[];
-  qa: {
-    noVerticalPct: number;
-    multiVerticalPct: number;
-    unknownCount: number;
-    headlineVsVerticals: Array<{ month: string; headline: number; vertical_sum: number; delta: number }>;
-  };
-}
-
-type RawRow = Record<string, unknown>;
-
-type ProcessedOrder = {
-  order_key: string;
-  order_ts: Date;
-  order_month: string;
-  verticals: Set<Vertical>;
-};
+import type {
+  MomOrdersByVerticalRow,
+  MomOrdersRow,
+  ProcessOrdersResult,
+  ProcessedOrderRow,
+  OrdersQA,
+  Vertical,
+} from "./types";
 
 const VERTICALS: Vertical[] = ["pom hl", "pom sh", "otc hl", "otc sh", "otc sk", "pom bg"];
 
@@ -95,11 +61,12 @@ function normalise(text: unknown): string {
     .trim();
 }
 
+const DATE_FORMATS = ["dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "d.M.yyyy"] as const;
+
 function parseDayFirst(input: unknown): Date | null {
   const raw = normalise(input);
   if (!raw) return null;
-  const formats = ["dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "d.M.yyyy"];
-  for (const fmt of formats) {
+  for (const fmt of DATE_FORMATS) {
     const parsed = parseDate(raw, fmt, new Date());
     if (isValid(parsed)) return parsed;
   }
@@ -131,7 +98,7 @@ function categoriesToVerticals(value: unknown): Set<Vertical> {
   return result;
 }
 
-function skusToVerticals(value: unknown): Set<Vertical> {
+function skusToVerticals(value: unknown) {
   const result = new Set<Vertical>();
   if (!value) return result;
   const items = String(value)
@@ -157,6 +124,14 @@ function skusToVerticals(value: unknown): Set<Vertical> {
   return result;
 }
 
+function extractSkuNames(value: unknown): string[] {
+  if (!value) return [];
+  return String(value)
+    .split(",")
+    .map((sku) => sku.toLowerCase().trim())
+    .filter(Boolean);
+}
+
 function daysElapsedInMonth(date: Date, snapshotMonth: string): number {
   const key = monthKey(date);
   if (key !== snapshotMonth) {
@@ -169,15 +144,53 @@ function isPartialMonth(month: string, snapshotMonth: string) {
   return month === snapshotMonth ? 1 : 0;
 }
 
-export function processOrdersCSV(buffer: Buffer): ProcessResult {
+function buildQA(
+  processed: ProcessedOrderRow[],
+  ordersByMonth: Map<string, number>,
+  ordersByMonthVertical: Map<string, number>,
+  months: string[],
+): OrdersQA {
+  const uniqueOrderVerticalSets = new Map<string, Set<Vertical>>();
+  const unknownKeys = new Set<string>();
+  for (const order of processed) {
+    const set = uniqueOrderVerticalSets.get(order.order_key) ?? new Set<Vertical>();
+    order.verticals.forEach((vertical) => set.add(vertical));
+    uniqueOrderVerticalSets.set(order.order_key, set);
+    if (order.verticals.size === 0) unknownKeys.add(order.order_key);
+  }
+
+  const verticalSets = Array.from(uniqueOrderVerticalSets.values());
+  const noVerticalPct = verticalSets.length === 0 ? 0 : (100 * verticalSets.filter((set) => set.size === 0).length) / verticalSets.length;
+  const multiVerticalPct = verticalSets.length === 0 ? 0 : (100 * verticalSets.filter((set) => set.size > 1).length) / verticalSets.length;
+
+  const mvKey = (month: string, vertical: Vertical) => `${month}|${vertical}`;
+  const headlineVsVerticals = months.map((month) => {
+    const headline = ordersByMonth.get(month) || 0;
+    const verticalSum = VERTICALS.reduce((acc, vertical) => acc + (ordersByMonthVertical.get(mvKey(month, vertical)) || 0), 0);
+    return {
+      month,
+      headline,
+      vertical_sum: verticalSum,
+      delta: verticalSum - headline,
+    };
+  });
+
+  return {
+    noVerticalPct,
+    multiVerticalPct,
+    unknownCount: unknownKeys.size,
+    headlineVsVerticals,
+  };
+}
+
+export function processOrdersCSV(buffer: Buffer): ProcessOrdersResult {
   const rawRows = csvParse(buffer, {
     columns: true,
     skip_empty_lines: true,
     trim: true,
-  }) as RawRow[];
+  }) as Record<string, unknown>[];
 
-  const processed: ProcessedOrder[] = [];
-  const unknownOrderKeys = new Set<string>();
+  const processed: ProcessedOrderRow[] = [];
 
   for (const raw of rawRows) {
     const ts = parseDayFirst(raw["Order Date"]);
@@ -188,32 +201,28 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
 
     const orderIdRaw = normalise(raw["Order_id"]);
     const useProvidedId = orderIdRaw && orderIdRaw !== "stripe";
-    const price = String(raw["Price"] ?? "");
+    const price = Number(raw["Price"]);
     const type = normalise(raw["Type"]);
     const customer = normalise(raw["Customer"]);
     const orderKey = useProvidedId
       ? `id|${orderIdRaw}`
-      : `syn|${customer}|${formatDate(ts, "yyyy-MM-dd")}|${price}|${type}`;
+      : `syn|${customer}|${formatDate(ts, "yyyy-MM-dd")}|${Number.isFinite(price) ? price : 0}|${type}`;
 
+    const skuNames = extractSkuNames(raw["SKUs"]);
     const verticalsFromSkus = skusToVerticals(raw["SKUs"]);
     const verticalsFromCategories = categoriesToVerticals(raw["Category"]);
-    const merged = new Set<Vertical>([...verticalsFromSkus, ...verticalsFromCategories]);
+    const mergedVerticals = new Set<Vertical>([...verticalsFromSkus, ...verticalsFromCategories]);
 
-    const record: ProcessedOrder = {
+    processed.push({
       order_key: orderKey,
       order_ts: ts,
       order_month: monthKey(ts),
-      verticals: merged,
-    };
-
-    if (merged.size === 0) {
-      unknownOrderKeys.add(orderKey);
-    }
-
-    processed.push(record);
+      price: Number.isFinite(price) ? price : 0,
+      skuNames,
+      verticals: mergedVerticals,
+    });
   }
 
-  // Deduplicate headline orders by order_key
   const seenOrderKeys = new Set<string>();
   const headlineOrders = processed.filter((order) => {
     if (seenOrderKeys.has(order.order_key)) return false;
@@ -221,7 +230,6 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
     return true;
   });
 
-  // Determine snapshot month (latest delivered order)
   const latestOrderDate = headlineOrders.reduce<Date | null>((acc, order) => {
     return acc ? (maxDate([acc, order.order_ts]) as Date) : order.order_ts;
   }, null);
@@ -229,7 +237,6 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
 
   const months = Array.from(new Set(headlineOrders.map((order) => order.order_month))).sort();
 
-  // Aggregate headline orders per month and track pacing denominator
   const ordersByMonth = new Map<string, number>();
   const pacingByMonth = new Map<string, number>();
   for (const month of months) {
@@ -266,13 +273,10 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
     });
   }
 
-  // Explode per vertical, deduplicating order-key-month-vertical combinations
   const seenOrderVerticalMonth = new Set<string>();
   const exploded: Array<{ order_key: string; order_month: string; vertical: Vertical; order_ts: Date }> = [];
   for (const order of processed) {
-    if (order.verticals.size === 0) {
-      continue;
-    }
+    if (order.verticals.size === 0) continue;
     for (const vertical of order.verticals) {
       const key = `${order.order_key}|${order.order_month}|${vertical}`;
       if (seenOrderVerticalMonth.has(key)) continue;
@@ -286,9 +290,9 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
     }
   }
 
+  const mvKey = (month: string, vertical: Vertical) => `${month}|${vertical}`;
   const ordersByMonthVertical = new Map<string, number>();
   const pacingByMonthVertical = new Map<string, number>();
-  const mvKey = (month: string, vertical: Vertical) => `${month}|${vertical}`;
   for (const month of months) {
     for (const vertical of VERTICALS) {
       ordersByMonthVertical.set(mvKey(month, vertical), 0);
@@ -329,40 +333,12 @@ export function processOrdersCSV(buffer: Buffer): ProcessResult {
     }
   }
 
-  const uniqueOrderVerticalSets = new Map<string, Set<Vertical>>();
-  for (const order of processed) {
-    const set = uniqueOrderVerticalSets.get(order.order_key) ?? new Set<Vertical>();
-    order.verticals.forEach((vertical) => set.add(vertical));
-    uniqueOrderVerticalSets.set(order.order_key, set);
-  }
-
-  const verticalSets = Array.from(uniqueOrderVerticalSets.values());
-  const noVerticalPct = verticalSets.length === 0
-    ? 0
-    : (100 * verticalSets.filter((set) => set.size === 0).length) / verticalSets.length;
-  const multiVerticalPct = verticalSets.length === 0
-    ? 0
-    : (100 * verticalSets.filter((set) => set.size > 1).length) / verticalSets.length;
-
-  const headlineVsVerticals = months.map((month) => {
-    const headline = ordersByMonth.get(month) || 0;
-    const verticalSum = VERTICALS.reduce((acc, vertical) => acc + (ordersByMonthVertical.get(mvKey(month, vertical)) || 0), 0);
-    return {
-      month,
-      headline,
-      vertical_sum: verticalSum,
-      delta: verticalSum - headline,
-    };
-  });
+  const qa = buildQA(processed, ordersByMonth, ordersByMonthVertical, months);
 
   return {
     momOrders,
     momOrdersByVertical,
-    qa: {
-      noVerticalPct,
-      multiVerticalPct,
-      unknownCount: unknownOrderKeys.size,
-      headlineVsVerticals,
-    },
+    qa,
+    processedOrders: processed,
   };
 }

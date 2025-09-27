@@ -14,7 +14,11 @@ import {
   YAxis,
 } from "recharts";
 
-import type { MomOrdersByVerticalRow, MomOrdersRow } from "@/lib/orders/processOrders";
+import type {
+  CatalogueSummary,
+  MomOrdersByVerticalRow,
+  MomOrdersRow,
+} from "@/lib/orders/types";
 
 interface ApiResponse {
   momOrders: MomOrdersRow[];
@@ -25,6 +29,7 @@ interface ApiResponse {
     unknownCount: number;
     headlineVsVerticals: Array<{ month: string; headline: number; vertical_sum: number; delta: number }>;
   };
+  catalogue: CatalogueSummary;
 }
 
 const VERTICALS: MomOrdersByVerticalRow["vertical"][] = ["pom hl", "pom sh", "otc hl", "otc sh", "otc sk", "pom bg"];
@@ -130,6 +135,35 @@ export function OrdersDashboard() {
         value: `headline=${row.headline}, vertical_sum=${row.vertical_sum}, delta=${row.delta}`,
       })),
     ];
+  }, [data]);
+
+  const catalogueRows: TableRow[] = useMemo(() => {
+    if (!data) return [];
+    const formatter = (value: number) => `Dh ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    const pct = (value: number) => `${(value * 100).toFixed(2)}%`;
+
+    const rows: TableRow[] = data.catalogue.rows.map((row) => ({
+      Category: row.category,
+      SKU: row.sku,
+      Units: row.units,
+      "Avg price": formatter(row.avgPrice),
+      Revenue: formatter(row.revenue),
+      "CoGS / unit": formatter(row.cogsPerUnit),
+      "CoGS total": formatter(row.cogsTotal),
+      "Take rate": pct(row.takeRate),
+      Notes: row.marginLabel,
+    }));
+
+    rows.push({});
+    rows.push({
+      Category: "Totals",
+      Units: data.catalogue.totals.units,
+      Revenue: formatter(data.catalogue.totals.revenue),
+      "CoGS total": formatter(data.catalogue.totals.cogs),
+      "Take rate": pct(data.catalogue.totals.takeRate),
+    });
+
+    return rows;
   }, [data]);
 
   return (
@@ -261,6 +295,10 @@ export function OrdersDashboard() {
             title="QA summary"
             rows={qaRows}
           />
+
+          {catalogueRows.length > 0 && (
+            <DataTable title="Product catalogue (delivered orders)" rows={catalogueRows} />
+          )}
         </div>
       )}
     </div>

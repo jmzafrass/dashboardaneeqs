@@ -1,9 +1,11 @@
 import ExcelJS from "exceljs";
-import type { MomOrdersByVerticalRow, MomOrdersRow } from "./processOrders";
+
+import type { CatalogueSummary, MomOrdersByVerticalRow, MomOrdersRow } from "./types";
 
 export async function buildOrdersWorkbook(
   headline: MomOrdersRow[],
   byVertical: MomOrdersByVerticalRow[],
+  catalogue?: CatalogueSummary,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
@@ -44,6 +46,53 @@ export async function buildOrdersWorkbook(
   s2.getColumn("ado_vertical_pacing").numFmt = "0.000";
   s2.views = [{ state: "frozen", ySplit: 1 }];
   s2.autoFilter = "A1:H1";
+
+  if (catalogue) {
+    const sheet = workbook.addWorksheet("Catalogue Summary");
+    sheet.columns = [
+      { header: "Category", key: "category", width: 14 },
+      { header: "SKU", key: "sku", width: 20 },
+      { header: "Units", key: "units", width: 10 },
+      { header: "Avg price", key: "avgPrice", width: 14 },
+      { header: "Revenue", key: "revenue", width: 16 },
+      { header: "CoGS / unit", key: "cogsPerUnit", width: 14 },
+      { header: "CoGS total", key: "cogsTotal", width: 16 },
+      { header: "Take rate", key: "takeRate", width: 12 },
+      { header: "Notes", key: "notes", width: 18 },
+    ];
+
+    catalogue.rows.forEach((row) => {
+      sheet.addRow({
+        category: row.category,
+        sku: row.sku,
+        units: row.units,
+        avgPrice: row.avgPrice,
+        revenue: row.revenue,
+        cogsPerUnit: row.cogsPerUnit,
+        cogsTotal: row.cogsTotal,
+        takeRate: row.takeRate,
+        notes: row.marginLabel,
+      });
+    });
+
+    sheet.addRow({});
+    sheet.addRow({
+      category: "Totals",
+      units: catalogue.totals.units,
+      revenue: catalogue.totals.revenue,
+      cogsTotal: catalogue.totals.cogs,
+      takeRate: catalogue.totals.takeRate,
+    });
+
+    sheet.getColumn("avgPrice").numFmt = '"Dh" #,##0.00';
+    sheet.getColumn("revenue").numFmt = '"Dh" #,##0.00';
+    sheet.getColumn("cogsPerUnit").numFmt = '"Dh" #,##0.00';
+    sheet.getColumn("cogsTotal").numFmt = '"Dh" #,##0.00';
+    sheet.getColumn("takeRate").numFmt = "0.00%";
+    sheet.getColumn("units").numFmt = "0";
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.autoFilter = "A1:I1";
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);

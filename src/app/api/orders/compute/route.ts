@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { NextResponse } from "next/server";
 
+import { computeCatalogueSummary } from "@/lib/orders/catalogue";
 import { processOrdersCSV } from "@/lib/orders/processOrders";
 
 async function loadDefaultOrders() {
@@ -32,7 +33,14 @@ export async function POST(request: Request) {
     }
 
     const result = processOrdersCSV(buffer);
-    return NextResponse.json(result);
+    const catalogue = computeCatalogueSummary(result.processedOrders);
+
+    return NextResponse.json({
+      momOrders: result.momOrders,
+      momOrdersByVertical: result.momOrdersByVertical,
+      qa: result.qa,
+      catalogue,
+    });
   } catch (error: unknown) {
     console.error("orders/compute", error);
     return NextResponse.json({ error: "processing_failed" }, { status: 500 });
