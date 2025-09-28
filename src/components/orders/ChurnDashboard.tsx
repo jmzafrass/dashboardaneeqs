@@ -16,6 +16,16 @@ import {
 
 import type { ChurnByCategoryRow, ChurnSummary } from "@/lib/orders/types";
 
+const CATEGORY_COLORS = [
+  "#1d4ed8",
+  "#0ea5e9",
+  "#f97316",
+  "#16a34a",
+  "#a855f7",
+  "#f43f5e",
+  "#64748b",
+];
+
 interface ChurnResponse {
   churn: ChurnSummary;
 }
@@ -98,6 +108,22 @@ export function ChurnDashboard() {
     }));
   }, [data]);
 
+  const categoryChartData = useMemo(() => {
+    if (!data) return [] as Array<Record<string, number | string>>;
+    const map = new Map<string, Record<string, number | string>>();
+    data.byCategory.forEach((row) => {
+      const bucket = map.get(row.month) ?? { month: row.month };
+      bucket[row.category] = row.churnRate * 100;
+      map.set(row.month, bucket);
+    });
+    return Array.from(map.values()).sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  }, [data]);
+
+  const categorySet = useMemo(() => {
+    if (!data) return [] as string[];
+    return Array.from(new Set(data.byCategory.map((row) => row.category))).sort();
+  }, [data]);
+
   return (
     <div className="space-y-5">
       <section className="flex flex-wrap items-center gap-3">
@@ -145,6 +171,28 @@ export function ChurnDashboard() {
                 <Area type="monotone" dataKey="onetime" name="One-time" stackId="one" stroke="#f97316" fill="#fed7aa" />
                 <Area type="monotone" dataKey="total" name="Total" stroke="#16a34a" fill="#bbf7d0" />
               </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">Monthly churn by category</div>
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={categoryChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(value) => `${value.toFixed(1)}%`} />
+                <Tooltip formatter={(value: number) => [`${value.toFixed(2)}%`, "Churn"]} />
+                <Legend />
+                {categorySet.map((category, index) => (
+                  <Line
+                    key={category}
+                    type="monotone"
+                    dataKey={category}
+                    stroke={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
             </ResponsiveContainer>
           </div>
 
