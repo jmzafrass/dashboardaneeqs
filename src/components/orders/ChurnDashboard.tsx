@@ -1,6 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import type { ChurnByCategoryRow, ChurnSummary } from "@/lib/orders/types";
 
@@ -65,6 +77,27 @@ export function ChurnDashboard() {
     }));
   }, [data]);
 
+  const churnChartData = useMemo(() => {
+    if (!data) return [] as Array<Record<string, number | string>>;
+    const map = new Map<string, Record<string, number | string>>();
+    data.overview.forEach((row) => {
+      const bucket = map.get(row.month) ?? { month: row.month };
+      bucket[`${row.label}_churn`] = row.churnRate * 100;
+      map.set(row.month, bucket);
+    });
+    return Array.from(map.values()).sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  }, [data]);
+
+  const dailyChartData = useMemo(() => {
+    if (!data) return [] as Array<Record<string, number | string>>;
+    return data.daily.map((row) => ({
+      date: row.date,
+      subscribers: row.subscribers,
+      onetime: row.onetime,
+      total: row.total,
+    }));
+  }, [data]);
+
   return (
     <div className="space-y-5">
       <section className="flex flex-wrap items-center gap-3">
@@ -83,6 +116,38 @@ export function ChurnDashboard() {
 
       {data && (
         <div className="space-y-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">Monthly churn rates</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={churnChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(value) => `${value.toFixed(1)}%`} />
+                <Tooltip formatter={(value: number) => [`${value.toFixed(2)}%`, "Churn"]} />
+                <Legend />
+                <Line type="monotone" dataKey="subscribers_churn" name="Subscribers" stroke="#1d4ed8" dot />
+                <Line type="monotone" dataKey="onetime_churn" name="One-time" stroke="#f97316" dot />
+                <Line type="monotone" dataKey="total_churn" name="Total" stroke="#16a34a" dot />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">Daily active coverage (customers)</div>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={dailyChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" minTickGap={20} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Area type="monotone" dataKey="subscribers" name="Subscribers" stackId="one" stroke="#1d4ed8" fill="#bfdbfe" />
+                <Area type="monotone" dataKey="onetime" name="One-time" stackId="one" stroke="#f97316" fill="#fed7aa" />
+                <Area type="monotone" dataKey="total" name="Total" stroke="#16a34a" fill="#bbf7d0" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
           <DataTable title="Logo churn overview" rows={overviewRows} />
           <DataTable title="Churn by category" rows={categoryRows} />
         </div>

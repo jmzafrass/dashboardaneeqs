@@ -1,7 +1,10 @@
-import { addDays, addMonths, startOfMonth } from "date-fns";
+import { addDays, addMonths, startOfDay, startOfMonth } from "date-fns";
 
-import { SKU_CATEGORY_MAP, SUBSCRIPTION_CATEGORIES, CHURN_CUTOFF_KEY } from "./constants";
+import { CHURN_CUTOFF_KEY, SKU_CATEGORY_MAP, SUBSCRIPTION_CATEGORIES } from "./constants";
 import type { ChurnByCategoryRow, ChurnRow, ChurnSummary, ProcessedOrderRow } from "./types";
+
+const CUTOFF_DATE = new Date(CHURN_CUTOFF_KEY);
+const CUTOFF_KEY = CHURN_CUTOFF_KEY;
 
 function monthKey(date: Date) {
   return startOfMonth(date).toISOString().slice(0, 10);
@@ -23,13 +26,24 @@ function parseCadence(notes: string): number {
     .reduce((acc, value) => acc + value, 0) || 1;
 }
 
-export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
-  const cutoff = CHURN_CUTOFF_KEY;
-  const monthSet = new Set<string>();
+function markDaily(store: Map<string, Set<string>>, start: Date, endExclusive: Date, customerId: string) {
+  let current = startOfDay(start);
+  const cutoff = startOfDay(CUTOFF_DATE);
+  while (current < endExclusive && current <= cutoff) {
+    const key = current.toISOString().slice(0, 10);
+    if (!store.has(key)) store.set(key, new Set());
+    store.get(key)!.add(customerId);
+    current = addDays(current, 1);
+  }
+}
 
+export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
+  const monthSet = new Set<string>();
   const subActive = new Map<string, Set<string>>();
   const oneTimeActive = new Map<string, Set<string>>();
   const categoryActive = new Map<string, Map<string, Set<string>>>();
+  const dailySubs = new Map<string, Set<string>>();
+  const dailyOneTime = new Map<string, Set<string>>();
 
   const ensureMonthSet = (store: Map<string, Set<string>>, key: string) => {
     if (!store.has(key)) store.set(key, new Set());
@@ -44,17 +58,19 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
   };
 
   for (const order of orders) {
-    if (order.order_month > cutoff) continue;
+    if (order.order_month > CUTOFF_KEY) continue;
     monthSet.add(order.order_month);
+
     const categories = Array.from(new Set(order.skuNames.map((sku) => SKU_CATEGORY_MAP[sku] ?? "Unknown")));
     const isSubscription = categories.some((category) => SUBSCRIPTION_CATEGORIES.has(category));
     const customerId = order.customerId;
     if (!customerId) continue;
+
     if (isSubscription) {
       const period = Math.max(1, parseCadence(order.notes));
       for (let i = 0; i < period; i += 1) {
         const key = addMonthKey(order.order_month, i);
-        if (key > cutoff) break;
+        if (key > CUTOFF_KEY) break;
         monthSet.add(key);
         ensureMonthSet(subActive, key).add(customerId);
         categories.forEach((category) => {
@@ -63,26 +79,35 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
           }
         });
       }
+
+      const start = order.order_ts;
+      const end = addMonths(start, period);
+      markDaily(dailySubs, start, end, customerId);
     } else {
       const monthKeyCurrent = order.order_month;
       ensureMonthSet(oneTimeActive, monthKeyCurrent).add(customerId);
       categories.forEach((category) => {
         ensureCategoryMonthSet(category, monthKeyCurrent).add(customerId);
       });
-      const futureKey = monthKey(addDays(order.order_ts, 30));
-      if (futureKey !== monthKeyCurrent && futureKey <= cutoff) {
-        monthSet.add(futureKey);
-        ensureMonthSet(oneTimeActive, futureKey).add(customerId);
+
+      const spillKey = monthKey(addDays(order.order_ts, 30));
+      if (spillKey !== monthKeyCurrent && spillKey <= CUTOFF_KEY) {
+        monthSet.add(spillKey);
+        ensureMonthSet(oneTimeActive, spillKey).add(customerId);
         categories.forEach((category) => {
-          ensureCategoryMonthSet(category, futureKey).add(customerId);
+          ensureCategoryMonthSet(category, spillKey).add(customerId);
         });
       }
+
+      const start = order.order_ts;
+      const end = addDays(start, 30);
+      markDaily(dailyOneTime, start, end, customerId);
     }
   }
 
   const months = Array.from(monthSet).sort();
   if (!months.length) {
-    return { months: [], overview: [], byCategory: [] };
+    return { months: [], overview: [], byCategory: [], daily: [] };
   }
 
   const totalActive = new Map<string, Set<string>>();
@@ -126,7 +151,6 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
 
   const byCategory: ChurnByCategoryRow[] = [];
   for (const [category, monthMap] of categoryActive.entries()) {
-    const label = category;
     for (let i = 1; i < months.length; i += 1) {
       const prev = monthMap.get(months[i - 1]) ?? new Set();
       const curr = monthMap.get(months[i]) ?? new Set();
@@ -137,7 +161,7 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
       const churnRate = prevSize === 0 ? 0 : churned / prevSize;
       byCategory.push({
         month: months[i],
-        category: label,
+        category,
         prevActive: prevSize,
         retained,
         churned,
@@ -147,5 +171,23 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
     }
   }
 
-  return { months, overview, byCategory };
+  const dailyKeys = new Set<string>([...dailySubs.keys(), ...dailyOneTime.keys()]);
+  const daily = Array.from(dailyKeys)
+    .sort()
+    .filter((key) => key <= CUTOFF_KEY)
+    .map((key) => {
+      const subs = dailySubs.get(key) ?? new Set();
+      const ones = dailyOneTime.get(key) ?? new Set();
+      const total = new Set<string>();
+      subs.forEach((id) => total.add(id));
+      ones.forEach((id) => total.add(id));
+      return {
+        date: key,
+        subscribers: subs.size,
+        onetime: ones.size,
+        total: total.size,
+      };
+    });
+
+  return { months, overview, byCategory, daily };
 }
