@@ -17,6 +17,7 @@ import type {
   OrdersQA,
   Vertical,
 } from "./types";
+import { computeChurnSummary } from "./churn";
 
 const VERTICALS: Vertical[] = ["pom hl", "pom sh", "otc hl", "otc sh", "otc sk", "pom bg"];
 
@@ -220,6 +221,9 @@ export function processOrdersCSV(buffer: Buffer): ProcessOrdersResult {
       price: Number.isFinite(price) ? price : 0,
       skuNames,
       verticals: mergedVerticals,
+      customerId: customer,
+      customerLabel: String(raw["Customer"] ?? ""),
+      notes: String(raw["Notes"] ?? ""),
     });
   }
 
@@ -335,10 +339,13 @@ export function processOrdersCSV(buffer: Buffer): ProcessOrdersResult {
 
   const qa = buildQA(processed, ordersByMonth, ordersByMonthVertical, months);
 
+  const churn = computeChurnSummary(processed);
+
   return {
     momOrders,
     momOrdersByVertical,
     qa,
     processedOrders: processed,
+    churn,
   };
 }

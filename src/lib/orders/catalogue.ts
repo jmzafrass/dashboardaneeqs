@@ -1,27 +1,5 @@
+import { MAGENTA_START_KEY, SKU_CATEGORY_MAP } from "./constants";
 import type { CatalogueRow, CatalogueSummary, ProcessedOrderRow } from "./types";
-
-const SKU_CATEGORY_MAP: Record<string, string> = {
-  "ultimate revival": "POM HL",
-  "power regrowth": "POM HL",
-  "essential boost": "POM HL",
-  "oral mix": "POM HL",
-  "oral minoxidil": "POM HL",
-  "vital recharge": "POM SH",
-  "max power": "POM SH",
-  "delay spray": "OTC SH",
-  "essential routine": "OTC SK",
-  "advanced routine": "OTC SK",
-  cleanser: "OTC SK",
-  "moisturizer spf": "OTC SK",
-  moisturizer: "OTC SK",
-  "eye cream": "OTC SK",
-  serum: "OTC SK",
-  shampoo: "OTC HL",
-  conditioner: "OTC HL",
-  "regrowth hair pack": "OTC HL",
-  "regrowth pack": "OTC HL",
-  "beard growth serum": "POM BG",
-};
 
 const LEGACY_COGS: Record<string, number> = {
   "ultimate revival": 465.12,
@@ -68,8 +46,6 @@ const MAGENTA_COGS: Record<string, number> = {
   "regrowth pack": 37.35,
   "beard growth serum": 159.0,
 };
-
-const MAGENTA_START_KEY = "2025-07-01";
 
 function isMagentaMonth(orderMonth: string) {
   return orderMonth >= MAGENTA_START_KEY;

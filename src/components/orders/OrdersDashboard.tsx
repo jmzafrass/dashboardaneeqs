@@ -30,6 +30,9 @@ interface ApiResponse {
     headlineVsVerticals: Array<{ month: string; headline: number; vertical_sum: number; delta: number }>;
   };
   catalogue: CatalogueSummary;
+  churn: {
+    months: string[];
+  };
 }
 
 const VERTICALS: MomOrdersByVerticalRow["vertical"][] = ["pom hl", "pom sh", "otc hl", "otc sh", "otc sk", "pom bg"];

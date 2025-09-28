@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       momOrdersByVertical: result.momOrdersByVertical,
       qa: result.qa,
       catalogue,
+      churn: result.churn,
     });
   } catch (error: unknown) {
     console.error("orders/compute", error);

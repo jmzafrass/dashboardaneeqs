@@ -7,6 +7,9 @@ export interface ProcessedOrderRow {
   price: number;
   skuNames: string[];
   verticals: Set<Vertical>;
+  customerId: string;
+  customerLabel: string;
+  notes: string;
 }
 
 export interface MomOrdersRow {
@@ -42,6 +45,7 @@ export interface ProcessOrdersResult {
   momOrdersByVertical: MomOrdersByVerticalRow[];
   qa: OrdersQA;
   processedOrders: ProcessedOrderRow[];
+  churn: ChurnSummary;
 }
 
 export interface CatalogueRow {
@@ -64,4 +68,30 @@ export interface CatalogueSummary {
     cogs: number;
     takeRate: number;
   };
+}
+
+export interface ChurnRow {
+  month: string;
+  label: "subscribers" | "onetime" | "total";
+  prevActive: number;
+  retained: number;
+  churned: number;
+  churnRate: number;
+  reactivated: number;
+}
+
+export interface ChurnByCategoryRow {
+  month: string;
+  category: string;
+  prevActive: number;
+  retained: number;
+  churned: number;
+  churnRate: number;
+  reactivated: number;
+}
+
+export interface ChurnSummary {
+  months: string[];
+  overview: ChurnRow[];
+  byCategory: ChurnByCategoryRow[];
 }

@@ -8,6 +8,7 @@ import { LtvHeatmap } from "@/components/tables/LtvHeatmap";
 import { HeatmapRow, RetentionHeatmap } from "@/components/tables/RetentionHeatmap";
 import { OrdersDashboard } from "@/components/orders/OrdersDashboard";
 import { CatalogueDashboard } from "@/components/orders/CatalogueDashboard";
+import { ChurnDashboard } from "@/components/orders/ChurnDashboard";
 import { UsersDashboard } from "@/components/users/UsersDashboard";
 import { useActiveUsersData } from "@/hooks/useActiveUsersData";
 import { useLtvData } from "@/hooks/useLtvData";
@@ -151,7 +152,7 @@ function ltvCellColor(value: number | undefined, max: number) {
 }
 
 export function Dashboard() {
-  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue">("cohorts");
+  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue" | "churn">("cohorts");
   const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
 
@@ -350,6 +351,15 @@ export function Dashboard() {
             Product Catalogue
           </button>
           <button
+            className={classNames(
+              "px-4 py-2 rounded-lg text-sm font-medium",
+              primaryTab === "churn" ? "bg-blue-600 text-white" : "bg-gray-200",
+            )}
+            onClick={() => setPrimaryTab("churn")}
+          >
+            Churn Analysis
+          </button>
+          <button
             className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200"
             onClick={() => setRefreshKey(Date.now())}
             title="Re-run data fetches"
@@ -493,8 +503,10 @@ export function Dashboard() {
           <UsersDashboard rows={activeRows} isLoading={activeLoading} error={activeError} usingFallback={activeFallback} />
         ) : primaryTab === "orders" ? (
           <OrdersDashboard />
-        ) : (
+        ) : primaryTab === "catalogue" ? (
           <CatalogueDashboard />
+        ) : (
+          <ChurnDashboard />
         )}
       </div>
     </div>
