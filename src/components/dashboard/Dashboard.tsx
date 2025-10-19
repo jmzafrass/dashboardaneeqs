@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 import { LtvFilters } from "@/components/filters/LtvFilters";
 import { RetentionFilters } from "@/components/filters/RetentionFilters";
@@ -155,6 +155,8 @@ export function Dashboard() {
   const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue" | "churn">("cohorts");
   const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
+  const retentionLastMonthRef = useRef("");
+  const ltvLastMonthRef = useRef("");
 
   const {
     rows: retentionRows,
@@ -217,19 +219,41 @@ export function Dashboard() {
     if (!startMonth && uniqueRetention.months.length) {
       setStartMonth(uniqueRetention.months[0]);
     }
-    if (!endMonth && uniqueRetention.months.length) {
-      setEndMonth(uniqueRetention.months[uniqueRetention.months.length - 1]);
+  }, [uniqueRetention.months, startMonth]);
+
+  useEffect(() => {
+    if (!uniqueRetention.months.length) return;
+    const latest = uniqueRetention.months[uniqueRetention.months.length - 1];
+    if (!endMonth) {
+      setEndMonth(latest);
+      retentionLastMonthRef.current = latest;
+      return;
     }
-  }, [uniqueRetention.months, startMonth, endMonth]);
+    if (retentionLastMonthRef.current !== latest) {
+      retentionLastMonthRef.current = latest;
+      setEndMonth(latest);
+    }
+  }, [uniqueRetention.months, endMonth]);
 
   useEffect(() => {
     if (!ltvStartMonth && uniqueLtv.months.length) {
       setLtvStartMonth(uniqueLtv.months[0]);
     }
-    if (!ltvEndMonth && uniqueLtv.months.length) {
-      setLtvEndMonth(uniqueLtv.months[uniqueLtv.months.length - 1]);
+  }, [uniqueLtv.months, ltvStartMonth]);
+
+  useEffect(() => {
+    if (!uniqueLtv.months.length) return;
+    const latest = uniqueLtv.months[uniqueLtv.months.length - 1];
+    if (!ltvEndMonth) {
+      setLtvEndMonth(latest);
+      ltvLastMonthRef.current = latest;
+      return;
     }
-  }, [uniqueLtv.months, ltvStartMonth, ltvEndMonth]);
+    if (ltvLastMonthRef.current !== latest) {
+      ltvLastMonthRef.current = latest;
+      setLtvEndMonth(latest);
+    }
+  }, [uniqueLtv.months, ltvEndMonth]);
 
   useEffect(() => {
     if (dimension === "category" && !uniqueRetention.categories.includes(firstValue)) {
