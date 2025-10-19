@@ -204,10 +204,13 @@ export function processOrdersCSV(buffer: Buffer): ProcessOrdersResult {
     const useProvidedId = orderIdRaw && orderIdRaw !== "stripe";
     const price = Number(raw["Price"]);
     const type = normalise(raw["Type"]);
-    const customer = normalise(raw["Customer"]);
+    const customerLabelRaw = String(raw["Customer"] ?? "");
+    const customer = normalise(customerLabelRaw);
+    const customerUidRaw = String(raw["name_uid"] ?? "").trim();
+    const customerId = customerUidRaw || customer;
     const orderKey = useProvidedId
       ? `id|${orderIdRaw}`
-      : `syn|${customer}|${formatDate(ts, "yyyy-MM-dd")}|${Number.isFinite(price) ? price : 0}|${type}`;
+      : `syn|${customerId}|${formatDate(ts, "yyyy-MM-dd")}|${Number.isFinite(price) ? price : 0}|${type}`;
 
     const skuNames = extractSkuNames(raw["SKUs"]);
     const verticalsFromSkus = skusToVerticals(raw["SKUs"]);
@@ -221,8 +224,8 @@ export function processOrdersCSV(buffer: Buffer): ProcessOrdersResult {
       price: Number.isFinite(price) ? price : 0,
       skuNames,
       verticals: mergedVerticals,
-      customerId: customer,
-      customerLabel: String(raw["Customer"] ?? ""),
+      customerId,
+      customerLabel: customerLabelRaw,
       notes: String(raw["Notes"] ?? ""),
     });
   }

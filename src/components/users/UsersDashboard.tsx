@@ -17,7 +17,6 @@ import {
   Cell,
 } from "recharts";
 
-import { ACTIVE_USERS_URL } from "@/lib/analytics/constants";
 import type { ActiveUsersRow } from "@/lib/analytics/types";
 import { classNames } from "@/lib/analytics/utils";
 
@@ -169,7 +168,7 @@ export function UsersDashboard({ rows, isLoading, error, usingFallback }: UsersD
           <div className="bg-white p-4 rounded-xl shadow">
             <div className="text-sm font-medium mb-1">Active users data source</div>
             <div className="text-xs text-gray-600 break-all">
-              {usingFallback ? "Embedded fallback sample" : `Local CSV asset (${ACTIVE_USERS_URL})`}
+              {usingFallback ? "Embedded fallback sample" : "Computed from delivered orders"}
             </div>
             <div className="text-[11px] text-gray-500 mt-1">Parsed rows: {rows.length}</div>
             {projectedCount > 0 && (

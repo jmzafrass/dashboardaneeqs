@@ -4,8 +4,6 @@ export const RETENTION_URL = "/data/purchase_retention.csv";
 
 export const LTV_URL = "/data/ltv_by_category_sku.csv";
 
-export const ACTIVE_USERS_URL = "/data/active_users_bymonth.csv";
-
 export const FALLBACK_RETENTION_ROWS: RetentionRow[] = [
   { cohortMonth: new Date(2024, 9, 1), cohortMonthKey: "2024-10", dimension: "overall", first_value: "ALL", m: 0, metric: "any", cohort_size: 3, retention: 1 },
   { cohortMonth: new Date(2024, 9, 1), cohortMonthKey: "2024-10", dimension: "overall", first_value: "ALL", m: 1, metric: "any", cohort_size: 3, retention: 0.6667 },

@@ -189,5 +189,12 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
       };
     });
 
-  return { months, overview, byCategory, daily };
+  const monthlyActive = months.map((month) => ({
+    month,
+    subscribers: subActive.get(month)?.size ?? 0,
+    onetime: oneTimeActive.get(month)?.size ?? 0,
+    total: totalActive.get(month)?.size ?? 0,
+  }));
+
+  return { months, overview, byCategory, daily, monthlyActive };
 }

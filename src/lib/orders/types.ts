@@ -95,4 +95,5 @@ export interface ChurnSummary {
   overview: ChurnRow[];
   byCategory: ChurnByCategoryRow[];
   daily: Array<{ date: string; subscribers: number; onetime: number; total: number }>;
+  monthlyActive: Array<{ month: string; subscribers: number; onetime: number; total: number }>;
 }
