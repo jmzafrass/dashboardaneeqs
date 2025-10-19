@@ -25,4 +25,4 @@ export const SUBSCRIPTION_CATEGORIES = new Set(["POM HL", "POM BG"]);
 
 export const MAGENTA_START_KEY = "2025-07-01";
 
-export const CHURN_CUTOFF_KEY = "2025-08-01";
+export const CHURN_CUTOFF_KEY = "2025-09-30";
