@@ -107,25 +107,37 @@ function clampAsOfMonth(maxMonth: string) {
   return maxMonth < baseline ? maxMonth : baseline;
 }
 
-function parseMonthFirst(raw: unknown): Date | null {
+function parseFlexibleDate(raw: unknown): Date | null {
   if (raw == null) return null;
   const value = String(raw).trim().split(" ")[0];
 
-  const mdy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
-  const ymdPattern = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/;
+  const pattern = /^(\d{1,4})[/-](\d{1,2})[/-](\d{1,4})$/;
+  const match = value.match(pattern);
 
-  let match = value.match(mdy);
   if (match) {
-    const [, m, d, y] = match;
-    const date = new Date(Number(y), Number(m) - 1, Number(d));
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
+    const [, partA, partB, partC] = match;
+    const a = Number.parseInt(partA, 10);
+    const b = Number.parseInt(partB, 10);
+    const c = Number.parseInt(partC, 10);
 
-  match = value.match(ymdPattern);
-  if (match) {
-    const [, y, m, d] = match;
-    const date = new Date(Number(y), Number(m) - 1, Number(d));
-    return Number.isNaN(date.getTime()) ? null : date;
+    const candidates: Array<{ year: number; month: number; day: number }> = [];
+
+    if (a >= 1 && a <= 31 && b >= 1 && b <= 12 && partC.length === 4) {
+      candidates.push({ year: c, month: b, day: a });
+    }
+
+    if (a >= 1 && a <= 12 && b >= 1 && b <= 31 && partC.length === 4) {
+      candidates.push({ year: c, month: a, day: b });
+    }
+
+    if (partA.length === 4 && b >= 1 && b <= 12 && c >= 1 && c <= 31) {
+      candidates.push({ year: a, month: b, day: c });
+    }
+
+    for (const candidate of candidates) {
+      const date = new Date(candidate.year, candidate.month - 1, candidate.day);
+      if (!Number.isNaN(date.getTime())) return date;
+    }
   }
 
   const fallback = new Date(value);
@@ -204,7 +216,7 @@ function parseOrders(records: Record<string, unknown>[]): ProcessedOrder[] {
     const status = String(get(row, ["Status Order", "Order Status", "Status"]) ?? "").trim().toLowerCase();
     if (status !== "delivered") continue;
 
-    const parsedDate = parseMonthFirst(get(row, ["Order Date", "Created At", "Date"]));
+    const parsedDate = parseFlexibleDate(get(row, ["Order Date", "Created At", "Date"]));
     if (!parsedDate) continue;
 
     const id =
