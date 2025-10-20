@@ -151,8 +151,19 @@ function ltvCellColor(value: number | undefined, max: number) {
   return "bg-sky-50";
 }
 
+type PrimaryTab = "current" | "cohorts" | "users" | "orders" | "catalogue" | "churn";
+
+const PRIMARY_TABS: Array<{ id: PrimaryTab; label: string }> = [
+  { id: "current", label: "Current Orders" },
+  { id: "cohorts", label: "Cohort Analytics" },
+  { id: "users", label: "User Analytics" },
+  { id: "orders", label: "Orders MoM" },
+  { id: "catalogue", label: "Product Catalogue" },
+  { id: "churn", label: "Churn Analysis" },
+];
+
 export function Dashboard() {
-  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue" | "churn" | "airtable">("cohorts");
+  const [primaryTab, setPrimaryTab] = useState<PrimaryTab>("current");
   const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
   const retentionLastMonthRef = useRef("");
@@ -339,60 +350,18 @@ export function Dashboard() {
 
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
           <div className="flex flex-wrap gap-2">
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "cohorts" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("cohorts")}
-            >
-              Cohort Analytics
-            </button>
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "users" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("users")}
-            >
-              User Analytics
-            </button>
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "orders" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("orders")}
-            >
-              Orders MoM
-            </button>
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "catalogue" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("catalogue")}
-            >
-              Product Catalogue
-            </button>
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "churn" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("churn")}
-            >
-              Churn Analysis
-            </button>
-            <button
-              className={classNames(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                primaryTab === "airtable" ? "bg-blue-600 text-white" : "bg-gray-200",
-              )}
-              onClick={() => setPrimaryTab("airtable")}
-            >
-              Airtable View
-            </button>
+            {PRIMARY_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                className={classNames(
+                  "px-4 py-2 rounded-lg text-sm font-medium",
+                  primaryTab === tab.id ? "bg-blue-600 text-white" : "bg-gray-200",
+                )}
+                onClick={() => setPrimaryTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
           <div className="flex md:ml-auto">
             <button
@@ -405,7 +374,28 @@ export function Dashboard() {
           </div>
         </div>
 
-        {primaryTab === "cohorts" ? (
+        {primaryTab === "current" ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="mb-2 text-sm font-semibold text-slate-900">Current month order view</div>
+              <p className="text-xs text-gray-600">
+                Embedded Airtable report covering the live monthly order tracker with month-over-month benchmarks and drilldowns.
+              </p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="h-[540px] w-full overflow-hidden rounded-lg border border-gray-200">
+                <iframe
+                  title="Current month order dashboard"
+                  className="airtable-embed h-full w-full"
+                  src="https://airtable.com/embed/appykWziIu3ZogEa1/shrS2atipEwwkqVgz"
+                  loading="lazy"
+                  frameBorder="0"
+                  style={{ background: "transparent" }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : primaryTab === "cohorts" ? (
           <div className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-xl shadow">
@@ -542,20 +532,6 @@ export function Dashboard() {
           <OrdersDashboard />
         ) : primaryTab === "catalogue" ? (
           <CatalogueDashboard />
-        ) : primaryTab === "airtable" ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="mb-2 text-sm font-semibold text-slate-900">Airtable dashboard</div>
-            <div className="h-[540px] w-full overflow-hidden rounded-lg border border-gray-200">
-              <iframe
-                title="Airtable dashboard"
-                className="airtable-embed h-full w-full"
-                src="https://airtable.com/embed/appykWziIu3ZogEa1/shrS2atipEwwkqVgz"
-                loading="lazy"
-                frameBorder="0"
-                style={{ background: "transparent" }}
-              />
-            </div>
-          </div>
         ) : (
           <ChurnDashboard />
         )}
