@@ -47,7 +47,7 @@ export function ChurnCard({ data }: { data: AnalyticsPayload }) {
       .map((row) => ({
         month: formatMonth(row.month),
         churned: row.churned,
-        rate: (row.churn_rate ?? 0) * 100,
+        rate: Number(row.churn_rate ?? 0) * 100,
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [category, data.churnByCategory, data.churnOverall, segment]);
