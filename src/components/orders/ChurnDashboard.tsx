@@ -41,6 +41,9 @@ export function ChurnDashboard() {
   const [selectedSeries, setSelectedSeries] = useState<
     "all" | "subscribers_churn" | "onetime_churn" | "total_churn"
   >("all");
+  const [selectedDaily, setSelectedDaily] = useState<
+    "all" | "subscribers_ret" | "onetime_ret" | "total_ret"
+  >("all");
 
   async function fetchChurn() {
     try {
@@ -130,6 +133,20 @@ export function ChurnDashboard() {
     return Array.from(new Set(data.byCategory.map((row) => row.category))).sort();
   }, [data]);
 
+  const dailyRetentionChartData = useMemo(() => {
+    if (!data) return [] as Array<Record<string, number | string>>;
+    const map = new Map<string, Record<string, number | string>>();
+    data.dailyRetention.forEach((row) => {
+      const bucket = map.get(row.date) ?? { date: row.date };
+      bucket[`${row.label}_ret`] = row.retentionRate * 100;
+      map.set(row.date, bucket);
+    });
+    return Array.from(map.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }, [data]);
+
+  const isDailyVisible = (key: "subscribers_ret" | "onetime_ret" | "total_ret") =>
+    selectedDaily === "all" || selectedDaily === key;
+
   return (
     <div className="space-y-5">
       <section className="flex flex-wrap items-center gap-3">
@@ -188,6 +205,51 @@ export function ChurnDashboard() {
                 )}
                 {isSeriesVisible("total_churn") && (
                   <Line type="monotone" dataKey="total_churn" name="Total" stroke="#16a34a" dot />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">Daily retention rate</div>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+              {[
+                { key: "all" as const, label: "All" },
+                { key: "subscribers_ret" as const, label: "Subscribers" },
+                { key: "onetime_ret" as const, label: "One-time" },
+                { key: "total_ret" as const, label: "Total" },
+              ].map((option) => {
+                const active = selectedDaily === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setSelectedDaily(option.key)}
+                    aria-pressed={active}
+                    className={`rounded-full border px-3 py-1 transition-colors ${
+                      active ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={dailyRetentionChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" minTickGap={20} />
+                <YAxis tickFormatter={(value) => `${value.toFixed(1)}%`} />
+                <Tooltip formatter={(value: number) => [`${value.toFixed(2)}%`, "Retention"]} />
+                <Legend />
+                {isDailyVisible("subscribers_ret") && (
+                  <Line type="monotone" dataKey="subscribers_ret" name="Subscribers" stroke="#1d4ed8" dot={false} />
+                )}
+                {isDailyVisible("onetime_ret") && (
+                  <Line type="monotone" dataKey="onetime_ret" name="One-time" stroke="#f97316" dot={false} />
+                )}
+                {isDailyVisible("total_ret") && (
+                  <Line type="monotone" dataKey="total_ret" name="Total" stroke="#16a34a" dot={false} />
                 )}
               </LineChart>
             </ResponsiveContainer>

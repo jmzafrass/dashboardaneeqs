@@ -95,5 +95,17 @@ export interface ChurnSummary {
   overview: ChurnRow[];
   byCategory: ChurnByCategoryRow[];
   daily: Array<{ date: string; subscribers: number; onetime: number; total: number }>;
+  dailyRetention: DailyRetentionRow[];
   monthlyActive: Array<{ month: string; subscribers: number; onetime: number; total: number }>;
+}
+
+export interface DailyRetentionRow {
+  date: string;
+  label: "subscribers" | "onetime" | "total";
+  prevActive: number;
+  retained: number;
+  churned: number;
+  churnRate: number;
+  retentionRate: number;
+  reactivated: number;
 }

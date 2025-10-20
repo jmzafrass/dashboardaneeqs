@@ -1,7 +1,7 @@
 import { addDays, addMonths, startOfDay, startOfMonth } from "date-fns";
 
 import { CHURN_CUTOFF_KEY, SKU_CATEGORY_MAP, SUBSCRIPTION_CATEGORIES } from "./constants";
-import type { ChurnByCategoryRow, ChurnRow, ChurnSummary, ProcessedOrderRow } from "./types";
+import type { ChurnByCategoryRow, ChurnRow, ChurnSummary, ProcessedOrderRow, DailyRetentionRow } from "./types";
 
 const CUTOFF_DATE = new Date(CHURN_CUTOFF_KEY);
 const CUTOFF_KEY = CHURN_CUTOFF_KEY;
@@ -172,7 +172,8 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
   }
 
   const dailyKeys = new Set<string>([...dailySubs.keys(), ...dailyOneTime.keys()]);
-  const daily = Array.from(dailyKeys)
+  const orderedDailyKeys = Array.from(dailyKeys).sort();
+  const daily = orderedDailyKeys
     .sort()
     .filter((key) => key <= CUTOFF_KEY)
     .map((key) => {
@@ -189,6 +190,54 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
       };
     });
 
+  // Build daily retention/churn series using consecutive days.
+  const dailyRetention: DailyRetentionRow[] = [];
+  // Build a union map for total to reuse in series builder.
+  const dailyTotalMap = new Map<string, Set<string>>();
+  orderedDailyKeys.forEach((key) => {
+    const subs = dailySubs.get(key) ?? new Set<string>();
+    const ones = dailyOneTime.get(key) ?? new Set<string>();
+    const tot = new Set<string>();
+    subs.forEach((id) => tot.add(id));
+    ones.forEach((id) => tot.add(id));
+    dailyTotalMap.set(key, tot);
+  });
+
+  const buildDailySeries = (
+    label: "subscribers" | "onetime" | "total",
+    store: Map<string, Set<string>>,
+  ): DailyRetentionRow[] => {
+    const series: DailyRetentionRow[] = [];
+    const days = orderedDailyKeys.filter((d) => d <= CUTOFF_KEY);
+    for (let i = 1; i < days.length; i += 1) {
+      const prev = store.get(days[i - 1]) ?? new Set<string>();
+      const curr = store.get(days[i]) ?? new Set<string>();
+      const prevSize = prev.size;
+      const retained = Array.from(prev).filter((id) => curr.has(id)).length;
+      const churned = prevSize - retained;
+      const reactivated = Array.from(curr).filter((id) => !prev.has(id)).length;
+      const churnRate = prevSize === 0 ? 0 : churned / prevSize;
+      const retentionRate = prevSize === 0 ? 0 : retained / prevSize;
+      series.push({
+        date: days[i],
+        label,
+        prevActive: prevSize,
+        retained,
+        churned,
+        churnRate,
+        retentionRate,
+        reactivated,
+      });
+    }
+    return series;
+  };
+
+  dailyRetention.push(
+    ...buildDailySeries("subscribers", dailySubs),
+    ...buildDailySeries("onetime", dailyOneTime),
+    ...buildDailySeries("total", dailyTotalMap),
+  );
+
   const monthlyActive = months.map((month) => ({
     month,
     subscribers: subActive.get(month)?.size ?? 0,
@@ -196,5 +245,5 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
     total: totalActive.get(month)?.size ?? 0,
   }));
 
-  return { months, overview, byCategory, daily, monthlyActive };
+  return { months, overview, byCategory, daily, dailyRetention, monthlyActive };
 }
