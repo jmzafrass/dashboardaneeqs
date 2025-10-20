@@ -33,7 +33,8 @@ export function SurvivalCard({ data }: { data: AnalyticsPayload }) {
       const row: Record<string, number | string> = { cohort: formatCohort(cohortMonth) };
       monthOffsets.forEach((offset) => {
         const match = source.find((entry) => entry.cohort_month === cohortMonth && entry.m === offset);
-        row[`M${offset}`] = match ? (Number(match.survival_rate) || 0) * 100 : undefined;
+        const value = match ? Number(match.survival_rate ?? 0) * 100 : null;
+        if (value != null) row[`M${offset}`] = value;
       });
       return row;
     });
