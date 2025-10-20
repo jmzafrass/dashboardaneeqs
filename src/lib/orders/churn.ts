@@ -107,7 +107,7 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
 
   const months = Array.from(monthSet).sort();
   if (!months.length) {
-    return { months: [], overview: [], byCategory: [], daily: [], monthlyActive: [] };
+    return { months: [], overview: [], byCategory: [], daily: [], dailyRetention: [], monthlyActive: [] };
   }
 
   const totalActive = new Map<string, Set<string>>();
