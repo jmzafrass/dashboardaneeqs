@@ -16,6 +16,7 @@ import { useRetentionData } from "@/hooks/useRetentionData";
 import { RETENTION_URL, LTV_URL } from "@/lib/analytics/constants";
 import { addMonths, classNames, monthKeyFromDate, monthsDiff } from "@/lib/analytics/utils";
 import type { Dimension, Metric, LtvRow, RetentionRow } from "@/lib/analytics/types";
+import { ChurnV2Dashboard } from "@/components/churn-v2/ChurnV2Dashboard";
 
 interface PivotResult {
   rows: HeatmapRow[];
@@ -151,7 +152,7 @@ function ltvCellColor(value: number | undefined, max: number) {
   return "bg-sky-50";
 }
 
-type PrimaryTab = "current" | "cohorts" | "users" | "orders" | "catalogue" | "churn";
+type PrimaryTab = "current" | "cohorts" | "users" | "orders" | "catalogue" | "churn" | "churnV2";
 
 const PRIMARY_TABS: Array<{ id: PrimaryTab; label: string }> = [
   { id: "current", label: "Current Orders" },
@@ -160,6 +161,7 @@ const PRIMARY_TABS: Array<{ id: PrimaryTab; label: string }> = [
   { id: "orders", label: "Orders MoM" },
   { id: "catalogue", label: "Product Catalogue" },
   { id: "churn", label: "Churn Analysis" },
+  { id: "churnV2", label: "Churn V2" },
 ];
 
 export function Dashboard() {
@@ -532,8 +534,10 @@ export function Dashboard() {
           <OrdersDashboard />
         ) : primaryTab === "catalogue" ? (
           <CatalogueDashboard />
-        ) : (
+        ) : primaryTab === "churn" ? (
           <ChurnDashboard />
+        ) : (
+          <ChurnV2Dashboard />
         )}
       </div>
     </div>
