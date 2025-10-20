@@ -38,6 +38,9 @@ export function ChurnDashboard() {
   const [data, setData] = useState<ChurnSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<
+    "all" | "subscribers_churn" | "onetime_churn" | "total_churn"
+  >("all");
 
   async function fetchChurn() {
     try {
@@ -98,6 +101,9 @@ export function ChurnDashboard() {
     return Array.from(map.values()).sort((a, b) => String(a.month).localeCompare(String(b.month)));
   }, [data]);
 
+  const isSeriesVisible = (key: "subscribers_churn" | "onetime_churn" | "total_churn") =>
+    selectedSeries === "all" || selectedSeries === key;
+
   const dailyChartData = useMemo(() => {
     if (!data) return [] as Array<Record<string, number | string>>;
     return data.daily.map((row) => ({
@@ -144,6 +150,29 @@ export function ChurnDashboard() {
         <div className="space-y-5">
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-2 text-sm font-semibold text-slate-900">Monthly churn rates</div>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+              {[
+                { key: "all" as const, label: "All" },
+                { key: "subscribers_churn" as const, label: "Subscribers" },
+                { key: "onetime_churn" as const, label: "One-time" },
+                { key: "total_churn" as const, label: "Total" },
+              ].map((option) => {
+                const active = selectedSeries === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setSelectedSeries(option.key)}
+                    aria-pressed={active}
+                    className={`rounded-full border px-3 py-1 transition-colors ${
+                      active ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={churnChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -151,9 +180,15 @@ export function ChurnDashboard() {
                 <YAxis tickFormatter={(value) => `${value.toFixed(1)}%`} />
                 <Tooltip formatter={(value: number) => [`${value.toFixed(2)}%`, "Churn"]} />
                 <Legend />
-                <Line type="monotone" dataKey="subscribers_churn" name="Subscribers" stroke="#1d4ed8" dot />
-                <Line type="monotone" dataKey="onetime_churn" name="One-time" stroke="#f97316" dot />
-                <Line type="monotone" dataKey="total_churn" name="Total" stroke="#16a34a" dot />
+                {isSeriesVisible("subscribers_churn") && (
+                  <Line type="monotone" dataKey="subscribers_churn" name="Subscribers" stroke="#1d4ed8" dot />
+                )}
+                {isSeriesVisible("onetime_churn") && (
+                  <Line type="monotone" dataKey="onetime_churn" name="One-time" stroke="#f97316" dot />
+                )}
+                {isSeriesVisible("total_churn") && (
+                  <Line type="monotone" dataKey="total_churn" name="Total" stroke="#16a34a" dot />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
