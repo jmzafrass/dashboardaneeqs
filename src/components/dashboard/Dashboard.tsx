@@ -152,7 +152,7 @@ function ltvCellColor(value: number | undefined, max: number) {
 }
 
 export function Dashboard() {
-  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue" | "churn">("cohorts");
+  const [primaryTab, setPrimaryTab] = useState<"cohorts" | "users" | "orders" | "catalogue" | "churn" | "airtable">("cohorts");
   const [cohortTab, setCohortTab] = useState<"retention" | "ltv">("retention");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
   const retentionLastMonthRef = useRef("");
@@ -337,59 +337,72 @@ export function Dashboard() {
       <div className="p-6 max-w-[1400px] mx-auto">
         <h1 className="text-2xl font-bold mb-6">Customer Analytics Dashboard</h1>
 
-        <div className="flex gap-2 mb-4">
-          <button
-            className={classNames(
-              "px-4 py-2 rounded-lg text-sm font-medium",
-              primaryTab === "cohorts" ? "bg-blue-600 text-white" : "bg-gray-200",
-            )}
-            onClick={() => setPrimaryTab("cohorts")}
-          >
-            Cohort Analytics
-          </button>
-          <button
-            className={classNames(
-              "px-4 py-2 rounded-lg text-sm font-medium",
-              primaryTab === "users" ? "bg-blue-600 text-white" : "bg-gray-200",
-            )}
-            onClick={() => setPrimaryTab("users")}
-          >
-            User Analytics
-          </button>
-          <button
-            className={classNames(
-              "px-4 py-2 rounded-lg text-sm font-medium",
-              primaryTab === "orders" ? "bg-blue-600 text-white" : "bg-gray-200",
-            )}
-            onClick={() => setPrimaryTab("orders")}
-          >
-            Orders MoM
-          </button>
-          <button
-            className={classNames(
-              "px-4 py-2 rounded-lg text-sm font-medium",
-              primaryTab === "catalogue" ? "bg-blue-600 text-white" : "bg-gray-200",
-            )}
-            onClick={() => setPrimaryTab("catalogue")}
-          >
-            Product Catalogue
-          </button>
-          <button
-            className={classNames(
-              "px-4 py-2 rounded-lg text-sm font-medium",
-              primaryTab === "churn" ? "bg-blue-600 text-white" : "bg-gray-200",
-            )}
-            onClick={() => setPrimaryTab("churn")}
-          >
-            Churn Analysis
-          </button>
-          <button
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200"
-            onClick={() => setRefreshKey(Date.now())}
-            title="Re-run data fetches"
-          >
-            Refresh data
-          </button>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "cohorts" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("cohorts")}
+            >
+              Cohort Analytics
+            </button>
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "users" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("users")}
+            >
+              User Analytics
+            </button>
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "orders" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("orders")}
+            >
+              Orders MoM
+            </button>
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "catalogue" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("catalogue")}
+            >
+              Product Catalogue
+            </button>
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "churn" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("churn")}
+            >
+              Churn Analysis
+            </button>
+            <button
+              className={classNames(
+                "px-4 py-2 rounded-lg text-sm font-medium",
+                primaryTab === "airtable" ? "bg-blue-600 text-white" : "bg-gray-200",
+              )}
+              onClick={() => setPrimaryTab("airtable")}
+            >
+              Airtable View
+            </button>
+          </div>
+          <div className="flex md:ml-auto">
+            <button
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200"
+              onClick={() => setRefreshKey(Date.now())}
+              title="Re-run data fetches"
+            >
+              Refresh data
+            </button>
+          </div>
         </div>
 
         {primaryTab === "cohorts" ? (
@@ -529,6 +542,20 @@ export function Dashboard() {
           <OrdersDashboard />
         ) : primaryTab === "catalogue" ? (
           <CatalogueDashboard />
+        ) : primaryTab === "airtable" ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">Airtable dashboard</div>
+            <div className="h-[540px] w-full overflow-hidden rounded-lg border border-gray-200">
+              <iframe
+                title="Airtable dashboard"
+                className="airtable-embed h-full w-full"
+                src="https://airtable.com/embed/appykWziIu3ZogEa1/shrS2atipEwwkqVgz"
+                loading="lazy"
+                frameBorder="0"
+                style={{ background: "transparent" }}
+              />
+            </div>
+          </div>
         ) : (
           <ChurnDashboard />
         )}
