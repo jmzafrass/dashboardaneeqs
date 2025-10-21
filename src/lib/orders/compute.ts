@@ -75,7 +75,7 @@ export interface ComputeAllResult {
 }
 
 const SUBSCRIPTION_CATEGORIES = new Set(["pom hl", "pom bg"]);
-const CATEGORY_PRIORITY = ["pom hl", "pom sh", "pom bg", "otc hl", "otc sh", "otc sk"];
+const CATEGORY_PRIORITY = ["pom hl", "pom bg", "pom sh", "otc hl", "otc sh", "otc sk"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function zeroPad(value: number) {
@@ -111,33 +111,30 @@ function parseFlexibleDate(raw: unknown): Date | null {
   if (raw == null) return null;
   const value = String(raw).trim().split(" ")[0];
 
-  const pattern = /^(\d{1,4})[/-](\d{1,2})[/-](\d{1,4})$/;
-  const match = value.match(pattern);
+  const monthFirst = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
+  const isoPattern = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/;
 
+  let match = value.match(monthFirst);
   if (match) {
-    const [, partA, partB, partC] = match;
-    const a = Number.parseInt(partA, 10);
-    const b = Number.parseInt(partB, 10);
-    const c = Number.parseInt(partC, 10);
-
-    const candidates: Array<{ year: number; month: number; day: number }> = [];
-
-    if (a >= 1 && a <= 31 && b >= 1 && b <= 12 && partC.length === 4) {
-      candidates.push({ year: c, month: b, day: a });
-    }
-
-    if (a >= 1 && a <= 12 && b >= 1 && b <= 31 && partC.length === 4) {
-      candidates.push({ year: c, month: a, day: b });
-    }
-
-    if (partA.length === 4 && b >= 1 && b <= 12 && c >= 1 && c <= 31) {
-      candidates.push({ year: a, month: b, day: c });
-    }
-
-    for (const candidate of candidates) {
-      const date = new Date(candidate.year, candidate.month - 1, candidate.day);
+    const [, m, d, y] = match;
+    const month = Number.parseInt(m, 10);
+    const day = Number.parseInt(d, 10);
+    const year = Number.parseInt(y, 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const date = new Date(year, month - 1, day);
       if (!Number.isNaN(date.getTime())) return date;
     }
+    if (day >= 1 && day <= 12 && month >= 1 && month <= 31) {
+      const date = new Date(year, day - 1, month);
+      if (!Number.isNaN(date.getTime())) return date;
+    }
+  }
+
+  match = value.match(isoPattern);
+  if (match) {
+    const [, y, m, d] = match;
+    const date = new Date(Number.parseInt(y, 10), Number.parseInt(m, 10) - 1, Number.parseInt(d, 10));
+    if (!Number.isNaN(date.getTime())) return date;
   }
 
   const fallback = new Date(value);
@@ -288,38 +285,41 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
   const asOfDailyCutoff = new Date(asOfMonthDate.getFullYear(), asOfMonthDate.getMonth() + 1, 0);
 
   for (const order of orders) {
-    const categories = order.categories.length ? order.categories : [""];
+    const categories = order.categories;
+    const isSubscriptionOrder = categories.some((category) => SUBSCRIPTION_CATEGORIES.has(category));
+    const subscriptionCadence = isSubscriptionOrder ? cadenceMonths(order.notes, true) : 0;
 
-    for (const category of categories) {
-      const isSubscription = SUBSCRIPTION_CATEGORIES.has(category);
+    if (isSubscriptionOrder) {
+      for (let offset = 0; offset < subscriptionCadence; offset += 1) {
+        const target = addMonths(new Date(order.date.getFullYear(), order.date.getMonth(), 1), offset);
+        const key = ym(target);
+        if (key > asOfMonth) break;
 
-      if (isSubscription) {
-        const cadence = cadenceMonths(order.notes, true);
-        for (let offset = 0; offset < cadence; offset += 1) {
-          const target = addMonths(new Date(order.date.getFullYear(), order.date.getMonth(), 1), offset);
-          const key = ym(target);
-          if (key > asOfMonth) break;
+        if (!subscriptionMonthly.has(key)) subscriptionMonthly.set(key, new Set());
+        subscriptionMonthly.get(key)!.add(order.uid);
 
-          if (!subscriptionMonthly.has(key)) subscriptionMonthly.set(key, new Set());
-          subscriptionMonthly.get(key)!.add(order.uid);
+        categories
+          .filter((category) => SUBSCRIPTION_CATEGORIES.has(category))
+          .forEach((category) => {
+            if (!categoryMonthly.has(category)) categoryMonthly.set(category, new Map());
+            const categoryMap = categoryMonthly.get(category)!;
+            if (!categoryMap.has(key)) categoryMap.set(key, new Set());
+            categoryMap.get(key)!.add(order.uid);
+          });
+      }
+    } else {
+      const monthKey = ym(order.date);
+      if (!onetimeMonthly.has(monthKey)) onetimeMonthly.set(monthKey, new Set());
+      onetimeMonthly.get(monthKey)!.add(order.uid);
 
-          if (!categoryMonthly.has(category)) categoryMonthly.set(category, new Map());
-          const categoryMap = categoryMonthly.get(category)!;
-          if (!categoryMap.has(key)) categoryMap.set(key, new Set());
-          categoryMap.get(key)!.add(order.uid);
-        }
-      } else {
-        const monthKey = ym(order.date);
-        if (!onetimeMonthly.has(monthKey)) onetimeMonthly.set(monthKey, new Set());
-        onetimeMonthly.get(monthKey)!.add(order.uid);
+      const spill = new Date(order.date.getTime() + 30 * DAY_MS);
+      const spillKey = ym(spill);
+      if (spillKey !== monthKey && spillKey <= asOfMonth) {
+        if (!onetimeMonthly.has(spillKey)) onetimeMonthly.set(spillKey, new Set());
+        onetimeMonthly.get(spillKey)!.add(order.uid);
+      }
 
-        const spill = new Date(order.date.getTime() + 30 * DAY_MS);
-        const spillKey = ym(spill);
-        if (spillKey !== monthKey && spillKey <= asOfMonth) {
-          if (!onetimeMonthly.has(spillKey)) onetimeMonthly.set(spillKey, new Set());
-          onetimeMonthly.get(spillKey)!.add(order.uid);
-        }
-
+      categories.forEach((category) => {
         if (!categoryMonthly.has(category)) categoryMonthly.set(category, new Map());
         const categoryMap = categoryMonthly.get(category)!;
         if (!categoryMap.has(monthKey)) categoryMap.set(monthKey, new Set());
@@ -328,26 +328,20 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
           if (!categoryMap.has(spillKey)) categoryMap.set(spillKey, new Set());
           categoryMap.get(spillKey)!.add(order.uid);
         }
-      }
+      });
+    }
 
-      const startDay = new Date(order.date.getFullYear(), order.date.getMonth(), order.date.getDate());
-      const endDay = isSubscription
-        ? addMonths(startDay, cadenceMonths(order.notes, true))
-        : new Date(order.date.getTime() + 30 * DAY_MS);
+    const startDay = new Date(order.date.getFullYear(), order.date.getMonth(), order.date.getDate());
+    const endDay = isSubscriptionOrder ? addMonths(startDay, subscriptionCadence) : new Date(order.date.getTime() + 30 * DAY_MS);
 
-      for (
-        let cursor = new Date(startDay);
-        cursor <= asOfDailyCutoff && cursor < endDay;
-        cursor = new Date(cursor.getTime() + DAY_MS)
-      ) {
-        const key = ymd(cursor);
-        if (isSubscription) {
-          if (!subscriptionDaily.has(key)) subscriptionDaily.set(key, new Set());
-          subscriptionDaily.get(key)!.add(order.uid);
-        } else {
-          if (!onetimeDaily.has(key)) onetimeDaily.set(key, new Set());
-          onetimeDaily.get(key)!.add(order.uid);
-        }
+    for (let cursor = new Date(startDay); cursor <= asOfDailyCutoff && cursor < endDay; cursor = new Date(cursor.getTime() + DAY_MS)) {
+      const key = ymd(cursor);
+      if (isSubscriptionOrder) {
+        if (!subscriptionDaily.has(key)) subscriptionDaily.set(key, new Set());
+        subscriptionDaily.get(key)!.add(order.uid);
+      } else {
+        if (!onetimeDaily.has(key)) onetimeDaily.set(key, new Set());
+        onetimeDaily.get(key)!.add(order.uid);
       }
     }
   }
@@ -365,16 +359,32 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     totalMonthly.set(month, combined);
   });
 
+  const buildFirstSeenMap = (store: Map<string, Set<string>>) => {
+    const firstSeen = new Map<string, string>();
+    for (const month of orderedMonths) {
+      (store.get(month) ?? new Set()).forEach((uid) => {
+        if (!firstSeen.has(uid)) firstSeen.set(uid, month);
+      });
+    }
+    return firstSeen;
+  };
+
+  const firstSeenSubscription = buildFirstSeenMap(subscriptionMonthly);
+  const firstSeenOnetime = buildFirstSeenMap(onetimeMonthly);
+  const firstSeenTotal = buildFirstSeenMap(totalMonthly);
+
   const overview: ChurnRow[] = [];
 
-  const buildMonthlyChurn = (store: Map<string, Set<string>>, label: Segment) => {
+  const buildMonthlyChurn = (store: Map<string, Set<string>>, label: Segment, firstSeen: Map<string, string>) => {
     for (let index = 1; index < orderedMonths.length; index += 1) {
       const prev = store.get(orderedMonths[index - 1]) ?? new Set<string>();
       const curr = store.get(orderedMonths[index]) ?? new Set<string>();
       const prevSize = prev.size;
       const retained = Array.from(prev).filter((uid) => curr.has(uid)).length;
       const churned = prevSize - retained;
-      const reactivated = Array.from(curr).filter((uid) => !prev.has(uid)).length;
+      const rawNew = Array.from(curr).filter((uid) => !prev.has(uid));
+      const newUsers = rawNew.filter((uid) => firstSeen.get(uid) === orderedMonths[index]).length;
+      const reactivated = rawNew.length - newUsers;
       overview.push({
         month: orderedMonths[index],
         label,
@@ -387,9 +397,9 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     }
   };
 
-  buildMonthlyChurn(subscriptionMonthly, "subscribers");
-  buildMonthlyChurn(onetimeMonthly, "onetime");
-  buildMonthlyChurn(totalMonthly, "total");
+  buildMonthlyChurn(subscriptionMonthly, "subscribers", firstSeenSubscription);
+  buildMonthlyChurn(onetimeMonthly, "onetime", firstSeenOnetime);
+  buildMonthlyChurn(totalMonthly, "total", firstSeenTotal);
 
   const byCategory: ChurnByCategoryRow[] = [];
   for (const [category, store] of categoryMonthly.entries()) {
@@ -576,12 +586,15 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     if (!revenueByUid.has(order.uid)) revenueByUid.set(order.uid, new Map());
     const monthMap = revenueByUid.get(order.uid)!;
     monthMap.set(month, (monthMap.get(month) ?? 0) + order.price);
+
+    if (!order.categories.length) continue;
+    const share = order.price / order.categories.length;
     for (const category of order.categories) {
       if (!revenueByUidByCategory.has(order.uid)) revenueByUidByCategory.set(order.uid, new Map());
       const categoryMap = revenueByUidByCategory.get(order.uid)!;
       if (!categoryMap.has(category)) categoryMap.set(category, new Map());
       const categoryMonthMap = categoryMap.get(category)!;
-      categoryMonthMap.set(month, (categoryMonthMap.get(month) ?? 0) + order.price);
+      categoryMonthMap.set(month, (categoryMonthMap.get(month) ?? 0) + share);
     }
   }
 

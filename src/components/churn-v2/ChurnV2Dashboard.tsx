@@ -46,12 +46,16 @@ export function ChurnV2Dashboard() {
         };
 
         const categorySet = new Set<string>();
-        result.churn.byCategory.forEach((row) => categorySet.add(row.category.toLowerCase()));
-        result.waterfall.forEach((row) => categorySet.add(row.category.toLowerCase()));
-        result.survival.forEach((row) => categorySet.add(row.category.toLowerCase()));
+        const pushCategory = (value?: string) => {
+          const normalized = value?.toLowerCase().trim();
+          if (normalized) categorySet.add(normalized);
+        };
+        result.churn.byCategory.forEach((row) => pushCategory(row.category));
+        result.waterfall.forEach((row) => pushCategory(row.category));
+        result.survival.forEach((row) => pushCategory(row.category));
         result.retention
           .filter((row) => row.dimension === "category")
-          .forEach((row) => categorySet.add(row.first_value.toLowerCase()));
+          .forEach((row) => pushCategory(row.first_value));
 
         setCategories(Array.from(categorySet).sort());
         setData(result);
