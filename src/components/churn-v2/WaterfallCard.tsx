@@ -24,7 +24,7 @@ export function WaterfallCard({ data }: { data: ComputeAllResult }) {
   const { category } = useFilters();
 
   const rows = useMemo(() => {
-    const target = category === "all" ? "ALL" : category;
+    const target = category === "all" ? "all" : category;
     return data.waterfall
       .filter((row) => row.category.toLowerCase() === target)
       .sort((a, b) => a.month.localeCompare(b.month));
