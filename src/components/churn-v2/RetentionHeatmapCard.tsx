@@ -30,13 +30,12 @@ export function RetentionHeatmapCard({ data }: { data: ComputeAllResult }) {
   const { category, metric } = useFilters();
 
   const filteredRows = useMemo(() => {
-    const base = data.retention.filter((row) => row.dimension !== "sku");
     if (category === "all") {
-      return base.filter(
+      return data.retention.filter(
         (row) => row.dimension === "overall" && row.first_value === "ALL" && row.metric === "any",
       );
     }
-    return base.filter(
+    return data.retention.filter(
       (row) => row.dimension === "category" && row.first_value.toLowerCase() === category && row.metric === metric,
     );
   }, [category, data.retention, metric]);
