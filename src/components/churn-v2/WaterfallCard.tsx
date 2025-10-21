@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { ComputeAllResult, WaterfallOutputRow } from "@/lib/orders/compute";
+import type { ComputeAllResult } from "@/lib/orders/compute";
 import { useFilters } from "./FiltersContext";
 
 function formatMonth(month: string) {
@@ -24,10 +24,10 @@ export function WaterfallCard({ data }: { data: ComputeAllResult }) {
   const { category } = useFilters();
 
   const rows = useMemo(() => {
-    const source = data.waterfall.filter((row) => (category === "all" ? true : row.category.toLowerCase() === category));
-    const map = new Map<string, WaterfallOutputRow>();
-    source.forEach((row) => map.set(row.month, row));
-    return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));
+    const target = category === "all" ? "ALL" : category;
+    return data.waterfall
+      .filter((row) => row.category.toLowerCase() === target)
+      .sort((a, b) => a.month.localeCompare(b.month));
   }, [data.waterfall, category]);
 
   if (!rows.length) return null;

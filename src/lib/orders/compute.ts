@@ -712,20 +712,18 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
   }
 
   const waterfall: WaterfallOutputRow[] = [];
-  for (const [category, store] of categoryMonthly.entries()) {
+
+  const buildWaterfall = (category: string, store: Map<string, Set<string>>, unionStore?: Map<string, Set<string>>) => {
     let previous = new Set<string>();
+    const seenBefore = new Set<string>();
+
     for (const month of orderedMonths) {
-      const current = store.get(month) ?? new Set<string>();
+      const source = unionStore ?? store;
+      const current = new Set<string>(source.get(month) ?? new Set<string>());
       const startActive = previous.size;
       const retained = new Set(Array.from(previous).filter((uid) => current.has(uid)));
       const churned = previous.size - retained.size;
       const newActive = new Set(Array.from(current).filter((uid) => !previous.has(uid)));
-
-      const seenBefore = new Set<string>();
-      orderedMonths.filter((candidate) => candidate < month).forEach((candidate) => {
-        store.get(candidate)?.forEach((uid) => seenBefore.add(uid));
-      });
-
       const reactivated = Array.from(newActive).filter((uid) => seenBefore.has(uid)).length;
 
       waterfall.push({
@@ -738,8 +736,14 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
         end_active: current.size,
       });
 
+      current.forEach((uid) => seenBefore.add(uid));
       previous = current;
     }
+  };
+
+  buildWaterfall("ALL", totalMonthly, totalMonthly);
+  for (const [category, store] of categoryMonthly.entries()) {
+    buildWaterfall(category, store);
   }
 
   return {
