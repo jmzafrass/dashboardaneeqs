@@ -8,6 +8,7 @@ import type {
   ChurnRow,
   ChurnSummary,
   DailyRetentionRow,
+  WeeklyRetentionRow,
 } from "@/lib/orders/types";
 
 export type Segment = "subscribers" | "onetime" | "total";
@@ -141,6 +142,49 @@ function parseFlexibleDate(raw: unknown): Date | null {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
 
+function isoWeekStart(dateStr: string) {
+  const source = new Date(dateStr);
+  // Normalise to UTC to avoid timezone drift
+  const utc = new Date(Date.UTC(source.getFullYear(), source.getMonth(), source.getDate()));
+  const day = utc.getUTCDay(); // Sunday = 0
+  const delta = (day + 6) % 7; // days since Monday
+  utc.setUTCDate(utc.getUTCDate() - delta);
+  return `${utc.getUTCFullYear()}-${zeroPad(utc.getUTCMonth() + 1)}-${zeroPad(utc.getUTCDate())}`;
+}
+
+function weeklySets(store: Map<string, Set<string>>) {
+  const acc = new Map<string, Set<string>>();
+  const dates = Array.from(store.keys()).sort();
+  for (const date of dates) {
+    const key = isoWeekStart(date);
+    if (!acc.has(key)) acc.set(key, new Set());
+    (store.get(date) ?? new Set<string>()).forEach((uid) => acc.get(key)!.add(uid));
+  }
+  return new Map(Array.from(acc.entries()).sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+function buildWeeklyRetention(store: Map<string, Set<string>>, label: Segment): WeeklyRetentionRow[] {
+  const weeks = weeklySets(store);
+  const keys = Array.from(weeks.keys());
+  const rows: WeeklyRetentionRow[] = [];
+  for (let index = 1; index < keys.length; index += 1) {
+    const prev = weeks.get(keys[index - 1]) ?? new Set<string>();
+    const curr = weeks.get(keys[index]) ?? new Set<string>();
+    const prevSize = prev.size;
+    const retained = Array.from(prev).filter((uid) => curr.has(uid)).length;
+    const churned = prevSize - retained;
+    rows.push({
+      week: keys[index],
+      label,
+      prevActive: prevSize,
+      retained,
+      churned,
+      retentionRate: prevSize ? retained / prevSize : 0,
+    });
+  }
+  return rows;
+}
+
 function splitValues(value: unknown) {
   if (value == null) return [] as string[];
   return String(value)
@@ -262,7 +306,7 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
   if (!orders.length) {
     return {
       asOfMonth: "—",
-      churn: { months: [], overview: [], byCategory: [], daily: [], dailyRetention: [], monthlyActive: [] },
+      churn: { months: [], overview: [], byCategory: [], daily: [], dailyRetention: [], weeklyRetention: [], monthlyActive: [] },
       retention: [],
       ltv: [],
       survival: [],
@@ -464,6 +508,12 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     ...buildDailyRetention(subscriptionDaily, "subscribers"),
     ...buildDailyRetention(onetimeDaily, "onetime"),
     ...buildDailyRetention(totalDaily, "total"),
+  ];
+
+  const weeklyRetention: WeeklyRetentionRow[] = [
+    ...buildWeeklyRetention(subscriptionDaily, "subscribers"),
+    ...buildWeeklyRetention(onetimeDaily, "onetime"),
+    ...buildWeeklyRetention(totalDaily, "total"),
   ];
 
   const monthlyActive = orderedMonths.map((month) => ({
@@ -754,6 +804,7 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
       byCategory,
       daily,
       dailyRetention,
+      weeklyRetention,
       monthlyActive,
     },
     retention,

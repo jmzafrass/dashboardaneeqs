@@ -1,7 +1,14 @@
 import { addDays, addMonths, startOfDay, startOfMonth } from "date-fns";
 
 import { CHURN_CUTOFF_KEY, SKU_CATEGORY_MAP, SUBSCRIPTION_CATEGORIES } from "./constants";
-import type { ChurnByCategoryRow, ChurnRow, ChurnSummary, ProcessedOrderRow, DailyRetentionRow } from "./types";
+import type {
+  ChurnByCategoryRow,
+  ChurnRow,
+  ChurnSummary,
+  DailyRetentionRow,
+  ProcessedOrderRow,
+  WeeklyRetentionRow,
+} from "./types";
 
 const CUTOFF_DATE = new Date(CHURN_CUTOFF_KEY);
 const CUTOFF_KEY = CHURN_CUTOFF_KEY;
@@ -35,6 +42,48 @@ function markDaily(store: Map<string, Set<string>>, start: Date, endExclusive: D
     store.get(key)!.add(customerId);
     current = addDays(current, 1);
   }
+}
+
+function isoWeekStart(dateStr: string) {
+  const d = new Date(dateStr);
+  const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = utc.getUTCDay();
+  const delta = (day + 6) % 7; // Monday = 0
+  utc.setUTCDate(utc.getUTCDate() - delta);
+  return utc.toISOString().slice(0, 10);
+}
+
+function weeklySets(store: Map<string, Set<string>>) {
+  const weeks = new Map<string, Set<string>>();
+  Array.from(store.keys())
+    .sort()
+    .forEach((date) => {
+      const key = isoWeekStart(date);
+      if (!weeks.has(key)) weeks.set(key, new Set());
+      (store.get(date) ?? new Set<string>()).forEach((id) => weeks.get(key)!.add(id));
+    });
+  return weeks;
+}
+
+function buildWeeklyRetention(store: Map<string, Set<string>>, label: "subscribers" | "onetime" | "total") {
+  const weeks = Array.from(weeklySets(store).entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const rows: WeeklyRetentionRow[] = [];
+  for (let index = 1; index < weeks.length; index += 1) {
+    const prev = weeks[index - 1][1];
+    const curr = weeks[index][1];
+    const prevSize = prev.size;
+    const retained = Array.from(prev).filter((id) => curr.has(id)).length;
+    const churned = prevSize - retained;
+    rows.push({
+      week: weeks[index][0],
+      label,
+      prevActive: prevSize,
+      retained,
+      churned,
+      retentionRate: prevSize === 0 ? 0 : retained / prevSize,
+    });
+  }
+  return rows;
 }
 
 export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
@@ -107,7 +156,7 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
 
   const months = Array.from(monthSet).sort();
   if (!months.length) {
-    return { months: [], overview: [], byCategory: [], daily: [], dailyRetention: [], monthlyActive: [] };
+    return { months: [], overview: [], byCategory: [], daily: [], dailyRetention: [], weeklyRetention: [], monthlyActive: [] };
   }
 
   const totalActive = new Map<string, Set<string>>();
@@ -238,6 +287,12 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
     ...buildDailySeries("total", dailyTotalMap),
   );
 
+  const weeklyRetention: WeeklyRetentionRow[] = [
+    ...buildWeeklyRetention(dailySubs, "subscribers"),
+    ...buildWeeklyRetention(dailyOneTime, "onetime"),
+    ...buildWeeklyRetention(dailyTotalMap, "total"),
+  ];
+
   const monthlyActive = months.map((month) => ({
     month,
     subscribers: subActive.get(month)?.size ?? 0,
@@ -245,5 +300,5 @@ export function computeChurnSummary(orders: ProcessedOrderRow[]): ChurnSummary {
     total: totalActive.get(month)?.size ?? 0,
   }));
 
-  return { months, overview, byCategory, daily, dailyRetention, monthlyActive };
+  return { months, overview, byCategory, daily, dailyRetention, weeklyRetention, monthlyActive };
 }

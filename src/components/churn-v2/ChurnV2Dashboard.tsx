@@ -10,7 +10,7 @@ import { WaterfallCard } from "./WaterfallCard";
 import { ChurnCard } from "./ChurnCard";
 import { RetentionHeatmapCard } from "./RetentionHeatmapCard";
 import { SurvivalCard } from "./SurvivalCard";
-import { DailyRetentionCard } from "./DailyRetentionCard";
+import { WeeklyRetentionCard } from "./WeeklyRetentionCard";
 
 export function ChurnV2Dashboard() {
   const [data, setData] = useState<ComputeAllResult | null>(null);
@@ -100,7 +100,7 @@ export function ChurnV2Dashboard() {
         <ChurnCard data={data} />
         <RetentionHeatmapCard data={data} />
         <SurvivalCard data={data} />
-        <DailyRetentionCard data={data} />
+        <WeeklyRetentionCard data={data} />
       </section>
     </FiltersProvider>
   );
