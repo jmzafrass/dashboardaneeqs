@@ -34,6 +34,7 @@ export function ChurnV2Dashboard() {
           ltv: ComputeAllResult["ltv"];
           survival: ComputeAllResult["survival"];
           waterfall: ComputeAllResult["waterfall"];
+          subscriberForecast?: ComputeAllResult["subscriberForecast"];
           asOfMonth: string;
         };
 
@@ -43,6 +44,7 @@ export function ChurnV2Dashboard() {
           ltv: payload.ltv,
           survival: payload.survival,
           waterfall: payload.waterfall,
+          subscriberForecast: payload.subscriberForecast ?? undefined,
           asOfMonth: payload.asOfMonth,
         };
 
