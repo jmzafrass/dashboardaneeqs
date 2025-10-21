@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 
-import type { AnalyticsPayload } from "@/lib/analytics/churnV2Types";
-import { useFilters } from "@/lib/analytics/filtersContext";
+import type { ComputeAllResult } from "@/lib/orders/compute";
+import { useFilters } from "./FiltersContext";
 
 function formatMonth(month: string) {
   return month?.slice(0, 7) ?? month;
@@ -26,7 +26,7 @@ interface HeatmapRow {
   values: Map<number, number | undefined>;
 }
 
-export function RetentionHeatmapCard({ data }: { data: AnalyticsPayload }) {
+export function RetentionHeatmapCard({ data }: { data: ComputeAllResult }) {
   const { category, metric } = useFilters();
 
   const filteredRows = useMemo(() => {

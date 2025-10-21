@@ -1,6 +1,6 @@
 "use client";
 
-import { useFilters } from "@/lib/analytics/filtersContext";
+import { useFilters } from "./FiltersContext";
 
 export function FiltersBar({ categories }: { categories: string[] }) {
   const { category, setCategory, segment, setSegment, metric, setMetric, categoryMode, setCategoryMode } = useFilters();

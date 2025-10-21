@@ -13,19 +13,19 @@ import {
   YAxis,
 } from "recharts";
 
-import type { AnalyticsPayload, WaterfallCsvRow } from "@/lib/analytics/churnV2Types";
-import { useFilters } from "@/lib/analytics/filtersContext";
+import type { ComputeAllResult, WaterfallOutputRow } from "@/lib/orders/compute";
+import { useFilters } from "./FiltersContext";
 
 function formatMonth(month: string) {
   return month?.slice(0, 7) ?? month;
 }
 
-export function WaterfallCard({ data }: { data: AnalyticsPayload }) {
+export function WaterfallCard({ data }: { data: ComputeAllResult }) {
   const { category } = useFilters();
 
   const rows = useMemo(() => {
     const source = data.waterfall.filter((row) => (category === "all" ? true : row.category.toLowerCase() === category));
-    const map = new Map<string, WaterfallCsvRow>();
+    const map = new Map<string, WaterfallOutputRow>();
     source.forEach((row) => map.set(row.month, row));
     return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));
   }, [data.waterfall, category]);

@@ -13,44 +13,38 @@ import {
   YAxis,
 } from "recharts";
 
-import type { AnalyticsPayload } from "@/lib/analytics/churnV2Types";
-import { useFilters } from "@/lib/analytics/filtersContext";
+import type { ComputeAllResult } from "@/lib/orders/compute";
+import { useFilters } from "./FiltersContext";
 
 function formatMonth(month: string) {
   return month?.slice(0, 7) ?? month;
 }
 
-export function ChurnCard({ data }: { data: AnalyticsPayload }) {
+export function ChurnCard({ data }: { data: ComputeAllResult }) {
   const { category, segment } = useFilters();
 
   const rows = useMemo(() => {
     if (category === "all") {
-      const rateKey =
-        segment === "subscribers" ? "churn_rate_subscribers" : segment === "onetime" ? "churn_rate_onetime" : "churn_rate_total";
-      const churnedKey =
-        segment === "subscribers"
-          ? "churned_subscribers"
-          : segment === "onetime"
-            ? "churned_onetime"
-            : "churned_total";
-      return data.churnOverall
+      const targetLabel = segment === "total" ? "total" : segment;
+      return data.churn.overview
+        .filter((row) => row.label === targetLabel)
         .map((row) => ({
           month: formatMonth(row.month),
-          churned: row[churnedKey] ?? 0,
-          rate: ((row[rateKey] as number | undefined) ?? 0) * 100,
+          churned: row.churned,
+          rate: row.churnRate * 100,
         }))
         .sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    return data.churnByCategory
+    return data.churn.byCategory
       .filter((row) => row.category.toLowerCase() === category)
       .map((row) => ({
         month: formatMonth(row.month),
         churned: row.churned,
-        rate: Number(row.churn_rate ?? 0) * 100,
+        rate: row.churnRate * 100,
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
-  }, [category, data.churnByCategory, data.churnOverall, segment]);
+  }, [category, data.churn.byCategory, data.churn.overview, segment]);
 
   if (!rows.length) return null;
 

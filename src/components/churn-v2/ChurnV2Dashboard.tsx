@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { FiltersProvider } from "@/lib/analytics/filtersContext";
-import type { AnalyticsPayload } from "@/lib/analytics/churnV2Types";
+import { FiltersProvider } from "./FiltersContext";
+import type { ComputeAllResult } from "@/lib/orders/compute";
 
 import { FiltersBar } from "./FiltersBar";
 import { WaterfallCard } from "./WaterfallCard";
@@ -13,7 +13,8 @@ import { SurvivalCard } from "./SurvivalCard";
 import { DailyRetentionCard } from "./DailyRetentionCard";
 
 export function ChurnV2Dashboard() {
-  const [data, setData] = useState<AnalyticsPayload | null>(null);
+  const [data, setData] = useState<ComputeAllResult | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +23,38 @@ export function ChurnV2Dashboard() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/analytics", { cache: "no-store" });
+        const response = await fetch("/api/orders/compute?source=default", { method: "POST", cache: "no-store" });
         if (!response.ok) {
           throw new Error(await response.text());
         }
-        const payload = (await response.json()) as AnalyticsPayload;
-        setData(payload);
+        const payload = (await response.json()) as {
+          churn: ComputeAllResult["churn"];
+          retention: ComputeAllResult["retention"];
+          ltv: ComputeAllResult["ltv"];
+          survival: ComputeAllResult["survival"];
+          waterfall: ComputeAllResult["waterfall"];
+          asOfMonth: string;
+        };
+
+        const result: ComputeAllResult = {
+          churn: payload.churn,
+          retention: payload.retention,
+          ltv: payload.ltv,
+          survival: payload.survival,
+          waterfall: payload.waterfall,
+          asOfMonth: payload.asOfMonth,
+        };
+
+        const categorySet = new Set<string>();
+        result.churn.byCategory.forEach((row) => categorySet.add(row.category.toLowerCase()));
+        result.waterfall.forEach((row) => categorySet.add(row.category.toLowerCase()));
+        result.survival.forEach((row) => categorySet.add(row.category.toLowerCase()));
+        result.retention
+          .filter((row) => row.dimension === "category")
+          .forEach((row) => categorySet.add(row.first_value.toLowerCase()));
+
+        setCategories(Array.from(categorySet).sort());
+        setData(result);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load analytics data");
       } finally {
@@ -63,7 +90,7 @@ export function ChurnV2Dashboard() {
           {error && <span className="text-xs text-red-600">Latest load error: {error}</span>}
         </div>
 
-        <FiltersBar categories={data.categories} />
+        <FiltersBar categories={categories} />
 
         <WaterfallCard data={data} />
         <ChurnCard data={data} />

@@ -2,10 +2,9 @@
 
 import { createContext, useContext, useMemo, useState } from "react";
 
-import type { Category, Segment } from "./churnV2Types";
-import type { Metric } from "./types";
+import type { Segment } from "@/lib/orders/compute";
 
-type CategoryFilter = Category | "all";
+type CategoryFilter = string | "all";
 type SegmentFilter = Segment | "total";
 type CategoryMode = "first" | "ever";
 
@@ -14,8 +13,8 @@ interface FiltersState {
   setCategory: (value: CategoryFilter) => void;
   segment: SegmentFilter;
   setSegment: (value: SegmentFilter) => void;
-  metric: Metric;
-  setMetric: (value: Metric) => void;
+  metric: "any" | "same";
+  setMetric: (value: "any" | "same") => void;
   categoryMode: CategoryMode;
   setCategoryMode: (value: CategoryMode) => void;
 }
@@ -25,7 +24,7 @@ const FiltersContext = createContext<FiltersState | null>(null);
 export function FiltersProvider({ children }: { children: React.ReactNode }) {
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [segment, setSegment] = useState<SegmentFilter>("total");
-  const [metric, setMetric] = useState<Metric>("any");
+  const [metric, setMetric] = useState<"any" | "same">("any");
   const [categoryMode, setCategoryMode] = useState<CategoryMode>("first");
 
   const value = useMemo(
@@ -46,9 +45,7 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useFilters() {
-  const state = useContext(FiltersContext);
-  if (!state) {
-    throw new Error("useFilters must be used within FiltersProvider");
-  }
-  return state;
+  const ctx = useContext(FiltersContext);
+  if (!ctx) throw new Error("useFilters must be used within FiltersProvider");
+  return ctx;
 }

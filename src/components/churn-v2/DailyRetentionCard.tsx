@@ -12,25 +12,52 @@ import {
   YAxis,
 } from "recharts";
 
-import type { AnalyticsPayload, Segment } from "@/lib/analytics/churnV2Types";
+import type { ComputeAllResult, Segment } from "@/lib/orders/compute";
 
 type FilterSegment = Segment | "all";
 
-export function DailyRetentionCard({ data }: { data: AnalyticsPayload }) {
+export function DailyRetentionCard({ data }: { data: ComputeAllResult }) {
   const [segment, setSegment] = useState<FilterSegment>("all");
 
   const chartRows = useMemo(() => {
-    const relevant = data.dailyRetention.filter((row) => (segment === "all" ? true : row.segment === segment));
+    const labels: Segment[] = ["subscribers", "onetime", "total"];
+    const activeLabels = segment === "all" ? labels : ([segment] as Segment[]);
+
+    const sorted = [...data.churn.dailyRetention].sort((a, b) => a.date.localeCompare(b.date));
+    const byLabel = new Map<Segment, typeof sorted>();
+    labels.forEach((label) => {
+      byLabel.set(label, sorted.filter((row) => row.label === label));
+    });
+
+    const rollingMaps = new Map<Segment, Map<string, number>>();
+    activeLabels.forEach((label) => {
+      const entries = byLabel.get(label) ?? [];
+      const window: number[] = [];
+      let sum = 0;
+      const map = new Map<string, number>();
+      entries.forEach((row) => {
+        const value = row.retentionRate ?? 0;
+        window.push(value);
+        sum += value;
+        if (window.length > 7) {
+          sum -= window.shift() ?? 0;
+        }
+        const average = window.length ? sum / window.length : 0;
+        map.set(row.date, average * 100);
+      });
+      rollingMaps.set(label, map);
+    });
+
     const map = new Map<string, Record<string, number | string>>();
-    relevant.forEach((row) => {
+    sorted.forEach((row) => {
+      if (!activeLabels.includes(row.label)) return;
       const bucket = map.get(row.date) ?? { date: row.date };
-      const key = `${row.segment}_7d`;
-      const value = row.retention_rate_7d != null ? Number(row.retention_rate_7d) : Number(row.retention_rate);
-      bucket[key] = value * 100;
+      bucket[`${row.label}_7d`] = rollingMaps.get(row.label)?.get(row.date) ?? 0;
       map.set(row.date, bucket);
     });
+
     return Array.from(map.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  }, [data.dailyRetention, segment]);
+  }, [data.churn.dailyRetention, segment]);
 
   if (!chartRows.length) return null;
 

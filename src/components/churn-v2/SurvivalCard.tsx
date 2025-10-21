@@ -12,14 +12,14 @@ import {
   YAxis,
 } from "recharts";
 
-import type { AnalyticsPayload } from "@/lib/analytics/churnV2Types";
-import { useFilters } from "@/lib/analytics/filtersContext";
+import type { ComputeAllResult } from "@/lib/orders/compute";
+import { useFilters } from "./FiltersContext";
 
 function formatCohort(cohort: string) {
   return cohort?.slice(0, 7) ?? cohort;
 }
 
-export function SurvivalCard({ data }: { data: AnalyticsPayload }) {
+export function SurvivalCard({ data }: { data: ComputeAllResult }) {
   const { category } = useFilters();
   const isSubscriptionCategory = category === "pom hl" || category === "pom bg";
 
