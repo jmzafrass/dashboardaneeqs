@@ -11,7 +11,6 @@ import { ChurnCard } from "./ChurnCard";
 import { RetentionHeatmapCard } from "./RetentionHeatmapCard";
 import { SurvivalCard } from "./SurvivalCard";
 import { WeeklyRetentionCard } from "./WeeklyRetentionCard";
-import { SubscriberForecastCard } from "./SubscriberForecastCard";
 
 export function ChurnV2Dashboard() {
   const [data, setData] = useState<ComputeAllResult | null>(null);
@@ -34,7 +33,6 @@ export function ChurnV2Dashboard() {
           ltv: ComputeAllResult["ltv"];
           survival: ComputeAllResult["survival"];
           waterfall: ComputeAllResult["waterfall"];
-          subscriberForecast?: ComputeAllResult["subscriberForecast"];
           asOfMonth: string;
         };
 
@@ -44,7 +42,6 @@ export function ChurnV2Dashboard() {
           ltv: payload.ltv,
           survival: payload.survival,
           waterfall: payload.waterfall,
-          subscriberForecast: payload.subscriberForecast ?? undefined,
           asOfMonth: payload.asOfMonth,
         };
 
@@ -99,7 +96,6 @@ export function ChurnV2Dashboard() {
 
         <FiltersBar categories={categories} />
 
-        {data.subscriberForecast && <SubscriberForecastCard forecast={data.subscriberForecast} />}
         <WaterfallCard data={data} />
         <ChurnCard data={data} />
         <RetentionHeatmapCard data={data} />

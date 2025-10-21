@@ -66,18 +66,6 @@ export interface WaterfallOutputRow {
   end_active: number;
 }
 
-export interface SubscriberForecast {
-  month: string;
-  asOfDate: string;
-  carryover: number;
-  mtdIncremental: number;
-  estIncrementalTotal: number;
-  expectedRemaining: number;
-  forecastSubscribersEOM: number;
-  lower: number;
-  upper: number;
-}
-
 export interface ComputeAllResult {
   asOfMonth: string;
   churn: ChurnSummary;
@@ -85,7 +73,6 @@ export interface ComputeAllResult {
   ltv: LtvOutputRow[];
   survival: SurvivalOutputRow[];
   waterfall: WaterfallOutputRow[];
-  subscriberForecast?: SubscriberForecast;
 }
 
 const SUBSCRIPTION_CATEGORIES = new Set(["pom hl", "pom bg"]);
@@ -324,99 +311,11 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
       ltv: [],
       survival: [],
       waterfall: [],
-      subscriberForecast: undefined,
     };
   }
 
   const maxMonthInData = orders.reduce((acc, order) => (order.monthKey > acc ? order.monthKey : acc), orders[0].monthKey);
   const asOfMonth = clampAsOfMonth(maxMonthInData);
-
-  const subscriptionOrders = orders.filter((order) => order.categories.some((category) => SUBSCRIPTION_CATEGORIES.has(category)));
-  const subscriptionOrdersSorted = [...subscriptionOrders].sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const coverageMonthsForOrder = (order: ProcessedOrder, limitMonth?: string) => {
-    const months: string[] = [];
-    const cadence = Math.max(1, cadenceMonths(order.notes, true));
-    const base = new Date(order.date.getFullYear(), order.date.getMonth(), 1);
-    for (let index = 0; index < cadence; index += 1) {
-      const key = ym(addMonths(base, index));
-      months.push(key);
-      if (limitMonth && key >= limitMonth) {
-        if (key > limitMonth) months.pop();
-        break;
-      }
-    }
-    return months;
-  };
-
-  const computeSubscriberSeries = (monthKey: string, limitDate: Date | null) => {
-    const [yearStr, monthStr] = monthKey.split("-");
-    const year = Number.parseInt(yearStr, 10);
-    const month = Number.parseInt(monthStr, 10);
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0);
-    const cutoff = limitDate && limitDate < monthEnd ? limitDate : monthEnd;
-
-    const carryover = new Set<string>();
-    for (const order of subscriptionOrdersSorted) {
-      if (order.date > cutoff) break;
-      if (!coverageMonthsForOrder(order, monthKey).includes(monthKey)) continue;
-      if (order.monthKey < monthKey) carryover.add(order.uid);
-    }
-
-    const firstActivation = new Map<string, string>();
-    for (const order of subscriptionOrdersSorted) {
-      if (order.date > cutoff) break;
-      if (order.monthKey !== monthKey) continue;
-      if (carryover.has(order.uid)) continue;
-      const dayKey = order.date.toISOString().slice(0, 10);
-      const existing = firstActivation.get(order.uid);
-      if (!existing || dayKey < existing) {
-        firstActivation.set(order.uid, dayKey);
-      }
-    }
-
-    const monthLength = monthEnd.getDate();
-    const dailyCounts = Array.from({ length: monthLength }, () => 0);
-    firstActivation.forEach((dayKey) => {
-      const day = Number.parseInt(dayKey.slice(-2), 10) - 1;
-      if (day >= 0 && day < monthLength) {
-        dailyCounts[day] += 1;
-      }
-    });
-
-    const cumulativeShares: number[] = [];
-    let running = 0;
-    const totalIncremental = firstActivation.size;
-    for (let index = 0; index < monthLength; index += 1) {
-      running += dailyCounts[index];
-      cumulativeShares[index] = totalIncremental ? running / totalIncremental : 0;
-    }
-
-    const observedDay = cutoff < monthStart ? 0 : Math.min(monthLength, cutoff.getDate());
-    const mtdIncremental = observedDay ? dailyCounts.slice(0, observedDay).reduce((sum, value) => sum + value, 0) : 0;
-
-    return {
-      carryover: carryover.size,
-      totalIncremental,
-      dailyCounts,
-      cumulativeShares,
-      monthLength,
-      observedDay,
-      mtdIncremental,
-    };
-  };
-
-  const quantile = (values: number[], q: number) => {
-    if (!values.length) return 0;
-    const sorted = [...values].sort((a, b) => a - b);
-    const position = (sorted.length - 1) * q;
-    const lower = Math.floor(position);
-    const upper = Math.ceil(position);
-    if (lower === upper) return sorted[lower];
-    const weight = position - lower;
-    return sorted[lower] + weight * (sorted[upper] - sorted[lower]);
-  };
 
   const subscriptionMonthly = new Map<string, Set<string>>();
   const onetimeMonthly = new Map<string, Set<string>>();
@@ -624,75 +523,6 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     total: (totalMonthly.get(month) ?? new Set()).size,
   }));
 
-  let subscriberForecast: SubscriberForecast | undefined;
-  if (subscriptionOrdersSorted.length) {
-    const maxOrderDate = subscriptionOrdersSorted[subscriptionOrdersSorted.length - 1].date;
-    const targetMonthKey = ym(maxOrderDate);
-    const monthStart = new Date(maxOrderDate.getFullYear(), maxOrderDate.getMonth(), 1);
-
-    const targetSeries = computeSubscriberSeries(targetMonthKey, maxOrderDate);
-    const lookbackMonths = Array.from({ length: 3 }, (_, index) => ym(addMonths(monthStart, -(index + 1))));
-    const lookbackSeries = lookbackMonths
-      .map((key) => computeSubscriberSeries(key, null))
-      .filter((series) => series.totalIncremental > 0);
-
-    const averageTotal = lookbackSeries.length
-      ? lookbackSeries.reduce((sum, series) => sum + series.totalIncremental, 0) / lookbackSeries.length
-      : targetSeries.totalIncremental;
-
-    const dayIndex = targetSeries.observedDay > 0 ? targetSeries.observedDay - 1 : 0;
-    const shareSamples =
-      targetSeries.observedDay > 0
-        ? lookbackSeries.map((series) => {
-            const idx = Math.min(series.monthLength - 1, dayIndex);
-            return series.cumulativeShares[idx] ?? (series.totalIncremental ? 1 : 0);
-          })
-        : [];
-
-    const meanShare = shareSamples.length
-      ? shareSamples.reduce((sum, value) => sum + value, 0) / shareSamples.length
-      : 0;
-    const shareP25 = shareSamples.length ? quantile(shareSamples, 0.25) : 0;
-    const shareP75 = shareSamples.length ? quantile(shareSamples, 0.75) : 0;
-
-    const safeAverageTotal = Number.isFinite(averageTotal) && averageTotal > 0 ? averageTotal : targetSeries.totalIncremental;
-
-    const computeTotalFromShare = (share: number) => {
-      if (share > 0.0001 && targetSeries.mtdIncremental > 0) {
-        return Math.max(targetSeries.mtdIncremental, targetSeries.mtdIncremental / share);
-      }
-      if (share > 0.0001) {
-        return Math.max(targetSeries.mtdIncremental, safeAverageTotal);
-      }
-      return Math.max(targetSeries.mtdIncremental, safeAverageTotal);
-    };
-
-    const estIncremental = shareSamples.length ? computeTotalFromShare(meanShare) : safeAverageTotal;
-    const estIncrementalLow = shareSamples.length ? computeTotalFromShare(Math.max(shareP75, 0.0001)) : estIncremental;
-    const estIncrementalHigh = shareSamples.length ? computeTotalFromShare(Math.max(shareP25, 0.0001)) : estIncremental;
-
-    const totalPoint = Number.isFinite(estIncremental) ? estIncremental : targetSeries.mtdIncremental;
-    const totalLow = Number.isFinite(estIncrementalLow) ? estIncrementalLow : totalPoint;
-    const totalHigh = Number.isFinite(estIncrementalHigh) ? estIncrementalHigh : totalPoint;
-
-    const clampedLow = Math.min(totalPoint, Math.max(targetSeries.mtdIncremental, totalLow));
-    const clampedHigh = Math.max(totalPoint, Math.max(targetSeries.mtdIncremental, totalHigh));
-
-    const expectedRemaining = Math.max(0, totalPoint - targetSeries.mtdIncremental);
-    const asOfIso = new Date(Math.min(maxOrderDate.getTime(), Date.now())).toISOString().slice(0, 10);
-
-    subscriberForecast = {
-      month: targetMonthKey,
-      asOfDate: asOfIso,
-      carryover: targetSeries.carryover,
-      mtdIncremental: targetSeries.mtdIncremental,
-      estIncrementalTotal: Math.round(totalPoint),
-      expectedRemaining: Math.round(expectedRemaining),
-      forecastSubscribersEOM: Math.round(targetSeries.carryover + totalPoint),
-      lower: Math.round(targetSeries.carryover + clampedLow),
-      upper: Math.round(targetSeries.carryover + clampedHigh),
-    };
-  }
 
   const ordersByUid = new Map<string, ProcessedOrder[]>();
   for (const order of orders) {
@@ -982,7 +812,6 @@ export function computeAllFromOrders(orders: ProcessedOrder[]): ComputeAllResult
     ltv,
     survival,
     waterfall,
-    subscriberForecast,
   };
 }
 

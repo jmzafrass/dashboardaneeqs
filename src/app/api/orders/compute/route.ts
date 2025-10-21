@@ -45,7 +45,6 @@ export async function POST(request: Request) {
       ltv: analytics.ltv,
       survival: analytics.survival,
       waterfall: analytics.waterfall,
-      subscriberForecast: analytics.subscriberForecast,
       asOfMonth: analytics.asOfMonth,
     });
   } catch (error: unknown) {
